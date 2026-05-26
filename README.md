@@ -10,9 +10,9 @@ The original idea of injecting CLI tools into DevWorkspaces via init containers 
 
 | Tool | Pattern | Image |
 |------|---------|-------|
-| [Claude Code](https://claude.ai/code) | init | `quay.io/che-incubator/claude-code:next` |
-| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | bundle | `quay.io/che-incubator/gemini-cli:next` |
-| [OpenCode](https://opencode.ai) | init | `quay.io/che-incubator/opencode:next` |
+| [Claude Code](https://claude.ai/code) | init | `quay.io/che-incubator/dashboard-ai/claude-code:next` |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | bundle | `quay.io/che-incubator/dashboard-ai/gemini-cli:next` |
+| [OpenCode](https://opencode.ai) | init | `quay.io/che-incubator/dashboard-ai/opencode:next` |
 
 All images are built for `linux/amd64` and `linux/arm64`.
 
@@ -29,7 +29,7 @@ components:
       size: 256Mi
   - name: claude-code-injector
     container:
-      image: quay.io/che-incubator/claude-code:next
+      image: quay.io/che-incubator/dashboard-ai/claude-code:next
       command: ["/bin/cp"]
       args: ["/usr/local/bin/claude", "/injected-tools/claude"]
       memoryLimit: 128Mi
@@ -59,7 +59,7 @@ components:
       size: 256Mi
   - name: gemini-cli-injector
     container:
-      image: quay.io/che-incubator/gemini-cli:next
+      image: quay.io/che-incubator/dashboard-ai/gemini-cli:next
       command: ["/bin/sh"]
       args: ["-c", "cp -a /opt/gemini-cli/. /injected-tools/gemini-cli/"]
       memoryLimit: 256Mi
@@ -89,7 +89,7 @@ components:
       size: 256Mi
   - name: opencode-injector
     container:
-      image: quay.io/che-incubator/opencode:next
+      image: quay.io/che-incubator/dashboard-ai/opencode:next
       command: ["/bin/cp"]
       args: ["/usr/local/bin/opencode", "/injected-tools/opencode"]
       memoryLimit: 128Mi
@@ -190,7 +190,7 @@ Edit `registry.json` before applying. For example, to offer only Claude Code:
       "url": "https://claude.ai/code",
       "binary": "claude",
       "pattern": "init",
-      "injectorImage": "quay.io/che-incubator/claude-code:next",
+      "injectorImage": "quay.io/che-incubator/dashboard-ai/claude-code:next",
       "envVarName": "ANTHROPIC_API_KEY"
     }
   ],

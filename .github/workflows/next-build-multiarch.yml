@@ -20,7 +20,7 @@ on:
       - main
 
 env:
-  REGISTRY: quay.io/che-incubator
+  REGISTRY: quay.io/che-incubator/dashboard-ai
   IMAGE_VERSION: next
 
 jobs:
