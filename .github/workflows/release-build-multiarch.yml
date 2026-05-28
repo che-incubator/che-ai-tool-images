@@ -10,33 +10,51 @@
 #   Red Hat, Inc. - initial API and implementation
 #
 
-name: Next Build - Multiarch
+name: Release Build - Multiarch
 
 on:
   workflow_dispatch:
-    inputs: {}
-  push:
-    branches:
-      - main
+    inputs:
+      claude_version:
+        description: "Claude Code version (leave empty to use Dockerfile default)"
+        required: false
+        default: ''
+      gemini_version:
+        description: "Gemini CLI version (leave empty to use Dockerfile default)"
+        required: false
+        default: ''
+      opencode_version:
+        description: "OpenCode version, without leading v (leave empty to use Dockerfile default)"
+        required: false
+        default: ''
 
 env:
   REGISTRY: quay.io/che-incubator/dashboard-ai
 
 jobs:
 
-  build:
+  release:
     runs-on: ubuntu-22.04
     steps:
       -
         name: "Checkout source code"
         uses: actions/checkout@v4
       -
-        name: "Extract versions from Dockerfiles"
+        name: "Resolve versions (input overrides Dockerfile default)"
         id: versions
+        env:
+          INPUT_CLAUDE: ${{ github.event.inputs.claude_version }}
+          INPUT_GEMINI: ${{ github.event.inputs.gemini_version }}
+          INPUT_OPENCODE: ${{ github.event.inputs.opencode_version }}
         run: |
-          CLAUDE=$(grep -m1 'ARG CLAUDE_CODE_VERSION=' dockerfiles/claude-code/Dockerfile | cut -d= -f2)
-          GEMINI=$(grep -m1 'ARG GEMINI_CLI_VERSION=' dockerfiles/gemini-cli/Dockerfile | cut -d= -f2)
-          OPENCODE=$(grep -m1 'ARG OPENCODE_VERSION=' dockerfiles/opencode/Dockerfile | cut -d= -f2 | sed 's/^v//')
+          DF_CLAUDE=$(grep -m1 'ARG CLAUDE_CODE_VERSION=' dockerfiles/claude-code/Dockerfile | cut -d= -f2)
+          DF_GEMINI=$(grep -m1 'ARG GEMINI_CLI_VERSION=' dockerfiles/gemini-cli/Dockerfile | cut -d= -f2)
+          DF_OPENCODE=$(grep -m1 'ARG OPENCODE_VERSION=' dockerfiles/opencode/Dockerfile | cut -d= -f2 | sed 's/^v//')
+
+          CLAUDE="${INPUT_CLAUDE:-$DF_CLAUDE}"
+          GEMINI="${INPUT_GEMINI:-$DF_GEMINI}"
+          OPENCODE="${INPUT_OPENCODE:-$DF_OPENCODE}"
+
           DATE=$(date +%Y%m%d)
           echo "claude=${CLAUDE}"    >> "$GITHUB_OUTPUT"
           echo "gemini=${GEMINI}"    >> "$GITHUB_OUTPUT"
@@ -69,7 +87,7 @@ jobs:
           build-args: |
             CLAUDE_CODE_VERSION=${{ steps.versions.outputs.claude }}
           tags: |
-            ${{ env.REGISTRY }}/claude-code:next
+            ${{ env.REGISTRY }}/claude-code:latest
             ${{ env.REGISTRY }}/claude-code:${{ steps.versions.outputs.claude_tag }}
       -
         name: "Build and push gemini-cli"
@@ -83,7 +101,7 @@ jobs:
           build-args: |
             GEMINI_CLI_VERSION=${{ steps.versions.outputs.gemini }}
           tags: |
-            ${{ env.REGISTRY }}/gemini-cli:next
+            ${{ env.REGISTRY }}/gemini-cli:latest
             ${{ env.REGISTRY }}/gemini-cli:${{ steps.versions.outputs.gemini_tag }}
       -
         name: "Build and push opencode"
@@ -97,5 +115,5 @@ jobs:
           build-args: |
             OPENCODE_VERSION=v${{ steps.versions.outputs.opencode }}
           tags: |
-            ${{ env.REGISTRY }}/opencode:next
+            ${{ env.REGISTRY }}/opencode:latest
             ${{ env.REGISTRY }}/opencode:${{ steps.versions.outputs.opencode_tag }}
