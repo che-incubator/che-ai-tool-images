@@ -147,6 +147,18 @@ The dashboard reads AI tool definitions from a Kubernetes ConfigMap at runtime. 
 - `oc` CLI authenticated to your cluster
 - Eclipse Che installed (namespace defaults to `eclipse-che`)
 
+### Image tags
+
+| Tag | Built by | Use for |
+|---|---|---|
+| `next` | Every push to `main` (automatic) | Development clusters |
+| `latest` | **Release Build** workflow (manual) | Production clusters |
+| `{version}-{YYYYMMDD}-{sha7}` | Both workflows | Pinned, immutable reference |
+
+`registry.json` ships with `:next` tags so it works immediately after any push to `main`.
+To point production clusters at `:latest`, run the **Release Build - Multiarch** workflow once,
+then update `injectorImage` entries in your ConfigMap to use `:latest`.
+
 ### Adding tools from registry.json
 
 Create a ConfigMap from the `registry.json` file in this repository:

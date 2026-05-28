@@ -40,28 +40,14 @@ jobs:
         name: "Checkout source code"
         uses: actions/checkout@v4
       -
-        name: "Resolve versions (input overrides Dockerfile default)"
+        name: "Resolve versions"
         id: versions
-        env:
-          INPUT_CLAUDE: ${{ github.event.inputs.claude_version }}
-          INPUT_GEMINI: ${{ github.event.inputs.gemini_version }}
-          INPUT_OPENCODE: ${{ github.event.inputs.opencode_version }}
-        run: |
-          DF_CLAUDE=$(grep -m1 'ARG CLAUDE_CODE_VERSION=' dockerfiles/claude-code/Dockerfile | cut -d= -f2)
-          DF_GEMINI=$(grep -m1 'ARG GEMINI_CLI_VERSION=' dockerfiles/gemini-cli/Dockerfile | cut -d= -f2)
-          DF_OPENCODE=$(grep -m1 'ARG OPENCODE_VERSION=' dockerfiles/opencode/Dockerfile | cut -d= -f2 | sed 's/^v//')
-
-          CLAUDE="${INPUT_CLAUDE:-$DF_CLAUDE}"
-          GEMINI="${INPUT_GEMINI:-$DF_GEMINI}"
-          OPENCODE="${INPUT_OPENCODE:-$DF_OPENCODE}"
-
-          DATE=$(date +%Y%m%d)
-          echo "claude=${CLAUDE}"    >> "$GITHUB_OUTPUT"
-          echo "gemini=${GEMINI}"    >> "$GITHUB_OUTPUT"
-          echo "opencode=${OPENCODE}" >> "$GITHUB_OUTPUT"
-          echo "claude_tag=${CLAUDE}-${DATE}"    >> "$GITHUB_OUTPUT"
-          echo "gemini_tag=${GEMINI}-${DATE}"    >> "$GITHUB_OUTPUT"
-          echo "opencode_tag=${OPENCODE}-${DATE}" >> "$GITHUB_OUTPUT"
+        uses: ./.github/actions/resolve-versions
+        with:
+          sha: ${{ github.sha }}
+          claude_override: ${{ github.event.inputs.claude_version }}
+          gemini_override: ${{ github.event.inputs.gemini_version }}
+          opencode_override: ${{ github.event.inputs.opencode_version }}
       -
         name: "Set up QEMU"
         uses: docker/setup-qemu-action@v3
@@ -117,3 +103,14 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/opencode:latest
             ${{ env.REGISTRY }}/opencode:${{ steps.versions.outputs.opencode_tag }}
+      -
+        name: "Release summary"
+        run: |
+          echo "## Release Build Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Image | Tags pushed |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`claude-code\` | \`latest\`, \`${{ steps.versions.outputs.claude_tag }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`gemini-cli\`  | \`latest\`, \`${{ steps.versions.outputs.gemini_tag }}\` |"  >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`opencode\`    | \`latest\`, \`${{ steps.versions.outputs.opencode_tag }}\` |"   >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "> After this run, apply \`registry.json\` to your cluster to use the \`:latest\` images." >> "$GITHUB_STEP_SUMMARY"

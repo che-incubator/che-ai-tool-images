@@ -31,19 +31,11 @@ jobs:
         name: "Checkout source code"
         uses: actions/checkout@v4
       -
-        name: "Extract versions from Dockerfiles"
+        name: "Resolve versions"
         id: versions
-        run: |
-          CLAUDE=$(grep -m1 'ARG CLAUDE_CODE_VERSION=' dockerfiles/claude-code/Dockerfile | cut -d= -f2)
-          GEMINI=$(grep -m1 'ARG GEMINI_CLI_VERSION=' dockerfiles/gemini-cli/Dockerfile | cut -d= -f2)
-          OPENCODE=$(grep -m1 'ARG OPENCODE_VERSION=' dockerfiles/opencode/Dockerfile | cut -d= -f2 | sed 's/^v//')
-          DATE=$(date +%Y%m%d)
-          echo "claude=${CLAUDE}"    >> "$GITHUB_OUTPUT"
-          echo "gemini=${GEMINI}"    >> "$GITHUB_OUTPUT"
-          echo "opencode=${OPENCODE}" >> "$GITHUB_OUTPUT"
-          echo "claude_tag=${CLAUDE}-${DATE}"    >> "$GITHUB_OUTPUT"
-          echo "gemini_tag=${GEMINI}-${DATE}"    >> "$GITHUB_OUTPUT"
-          echo "opencode_tag=${OPENCODE}-${DATE}" >> "$GITHUB_OUTPUT"
+        uses: ./.github/actions/resolve-versions
+        with:
+          sha: ${{ github.sha }}
       -
         name: "Set up QEMU"
         uses: docker/setup-qemu-action@v3
@@ -66,8 +58,6 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           provenance: false
-          build-args: |
-            CLAUDE_CODE_VERSION=${{ steps.versions.outputs.claude }}
           tags: |
             ${{ env.REGISTRY }}/claude-code:next
             ${{ env.REGISTRY }}/claude-code:${{ steps.versions.outputs.claude_tag }}
@@ -80,8 +70,6 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           provenance: false
-          build-args: |
-            GEMINI_CLI_VERSION=${{ steps.versions.outputs.gemini }}
           tags: |
             ${{ env.REGISTRY }}/gemini-cli:next
             ${{ env.REGISTRY }}/gemini-cli:${{ steps.versions.outputs.gemini_tag }}
@@ -94,8 +82,15 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           provenance: false
-          build-args: |
-            OPENCODE_VERSION=v${{ steps.versions.outputs.opencode }}
           tags: |
             ${{ env.REGISTRY }}/opencode:next
             ${{ env.REGISTRY }}/opencode:${{ steps.versions.outputs.opencode_tag }}
+      -
+        name: "Build summary"
+        run: |
+          echo "## Next Build Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Image | Tags pushed |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`claude-code\` | \`next\`, \`${{ steps.versions.outputs.claude_tag }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`gemini-cli\`  | \`next\`, \`${{ steps.versions.outputs.gemini_tag }}\` |"  >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`opencode\`    | \`next\`, \`${{ steps.versions.outputs.opencode_tag }}\` |"   >> "$GITHUB_STEP_SUMMARY"

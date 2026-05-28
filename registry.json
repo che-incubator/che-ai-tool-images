@@ -36,7 +36,7 @@
       "url": "https://claude.ai/code",
       "binary": "claude",
       "pattern": "init",
-      "injectorImage": "quay.io/che-incubator/dashboard-ai/claude-code:latest",
+      "injectorImage": "quay.io/che-incubator/dashboard-ai/claude-code:next",
       "envVarName": "ANTHROPIC_API_KEY"
     },
     {
@@ -46,7 +46,7 @@
       "url": "https://github.com/google-gemini/gemini-cli",
       "binary": "gemini",
       "pattern": "bundle",
-      "injectorImage": "quay.io/che-incubator/dashboard-ai/gemini-cli:latest",
+      "injectorImage": "quay.io/che-incubator/dashboard-ai/gemini-cli:next",
       "envVarName": "GEMINI_API_KEY",
       "setupCommand": "mkdir -p \"$HOME/.gemini\" && test -f \"$HOME/.gemini/projects.json\" || echo '{\"projects\":{}}' > \"$HOME/.gemini/projects.json\""
     },
@@ -57,7 +57,7 @@
       "url": "https://opencode.ai",
       "binary": "opencode",
       "pattern": "init",
-      "injectorImage": "quay.io/che-incubator/dashboard-ai/opencode:latest",
+      "injectorImage": "quay.io/che-incubator/dashboard-ai/opencode:next",
       "envVarName": "GOOGLE_GENERATIVE_AI_API_KEY"
     }
   ],

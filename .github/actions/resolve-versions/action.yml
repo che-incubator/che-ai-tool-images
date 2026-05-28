@@ -1,0 +1,83 @@
+#
+# Copyright (c) 2025 Red Hat, Inc.
+# This program and the accompanying materials are made
+# available under the terms of the Eclipse Public License 2.0
+# which is available at https://www.eclipse.org/legal/epl-2.0/
+#
+# SPDX-License-Identifier: EPL-2.0
+#
+name: 'Resolve Tool Versions'
+description: >
+  Extracts tool versions from Dockerfile ARG defaults, optionally overrides
+  them, validates they are non-empty, and computes immutable dated build tags
+  in the form  {version}-{YYYYMMDD}-{sha7}.
+
+inputs:
+  sha:
+    description: 'Full Git SHA — first 7 chars are appended to the build tag'
+    required: true
+  claude_override:
+    description: 'Override CLAUDE_CODE_VERSION (empty = use Dockerfile default)'
+    required: false
+    default: ''
+  gemini_override:
+    description: 'Override GEMINI_CLI_VERSION (empty = use Dockerfile default)'
+    required: false
+    default: ''
+  opencode_override:
+    description: 'Override OPENCODE_VERSION without leading v (empty = use Dockerfile default)'
+    required: false
+    default: ''
+
+outputs:
+  claude:
+    description: 'Resolved Claude Code version'
+    value: ${{ steps.resolve.outputs.claude }}
+  gemini:
+    description: 'Resolved Gemini CLI version'
+    value: ${{ steps.resolve.outputs.gemini }}
+  opencode:
+    description: 'Resolved OpenCode version (no leading v)'
+    value: ${{ steps.resolve.outputs.opencode }}
+  claude_tag:
+    description: 'Immutable build tag for claude-code: {version}-{YYYYMMDD}-{sha7}'
+    value: ${{ steps.resolve.outputs.claude_tag }}
+  gemini_tag:
+    description: 'Immutable build tag for gemini-cli: {version}-{YYYYMMDD}-{sha7}'
+    value: ${{ steps.resolve.outputs.gemini_tag }}
+  opencode_tag:
+    description: 'Immutable build tag for opencode: {version}-{YYYYMMDD}-{sha7}'
+    value: ${{ steps.resolve.outputs.opencode_tag }}
+
+runs:
+  using: composite
+  steps:
+    - id: resolve
+      shell: bash
+      env:
+        INPUT_CLAUDE: ${{ inputs.claude_override }}
+        INPUT_GEMINI: ${{ inputs.gemini_override }}
+        INPUT_OPENCODE: ${{ inputs.opencode_override }}
+        INPUT_SHA: ${{ inputs.sha }}
+      run: |
+        DF_CLAUDE=$(grep -m1 'ARG CLAUDE_CODE_VERSION=' dockerfiles/claude-code/Dockerfile | cut -d= -f2)
+        DF_GEMINI=$(grep -m1 'ARG GEMINI_CLI_VERSION=' dockerfiles/gemini-cli/Dockerfile | cut -d= -f2)
+        DF_OPENCODE=$(grep -m1 'ARG OPENCODE_VERSION=' dockerfiles/opencode/Dockerfile | cut -d= -f2 | sed 's/^v//')
+
+        CLAUDE="${INPUT_CLAUDE:-$DF_CLAUDE}"
+        GEMINI="${INPUT_GEMINI:-$DF_GEMINI}"
+        OPENCODE="${INPUT_OPENCODE:-$DF_OPENCODE}"
+
+        [[ -n "$CLAUDE" ]]   || { echo "::error::Failed to resolve CLAUDE_CODE_VERSION — check dockerfiles/claude-code/Dockerfile"; exit 1; }
+        [[ -n "$GEMINI" ]]   || { echo "::error::Failed to resolve GEMINI_CLI_VERSION — check dockerfiles/gemini-cli/Dockerfile"; exit 1; }
+        [[ -n "$OPENCODE" ]] || { echo "::error::Failed to resolve OPENCODE_VERSION — check dockerfiles/opencode/Dockerfile"; exit 1; }
+
+        DATE=$(date +%Y%m%d)
+        SHA7="${INPUT_SHA:0:7}"
+
+        echo "claude=${CLAUDE}"          >> "$GITHUB_OUTPUT"
+        echo "gemini=${GEMINI}"          >> "$GITHUB_OUTPUT"
+        echo "opencode=${OPENCODE}"      >> "$GITHUB_OUTPUT"
+        echo "claude_tag=${CLAUDE}-${DATE}-${SHA7}"    >> "$GITHUB_OUTPUT"
+        echo "gemini_tag=${GEMINI}-${DATE}-${SHA7}"    >> "$GITHUB_OUTPUT"
+        echo "opencode_tag=${OPENCODE}-${DATE}-${SHA7}" >> "$GITHUB_OUTPUT"
