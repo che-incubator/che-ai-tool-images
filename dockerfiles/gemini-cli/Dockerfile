@@ -52,6 +52,8 @@ RUN apk add --no-cache curl xz && \
 # Stage 3: assemble the final bundle.
 FROM registry.access.redhat.com/ubi9/ubi-minimal:9.6
 
+RUN microdnf install -y libstdc++ && microdnf clean all
+
 COPY --from=npm-installer /usr/local/lib/node_modules /opt/gemini-cli/lib/node_modules
 COPY --from=node-provider /usr/local/bin/node /opt/gemini-cli/bin/node
 COPY --from=npm-installer /tmp/gemini-entry.txt /opt/gemini-cli/gemini-entry.txt
