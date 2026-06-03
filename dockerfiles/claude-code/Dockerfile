@@ -26,7 +26,7 @@ RUN set -e && \
     chmod +x /usr/local/bin/claude
 
 # Stage 2: Minimal runtime image
-FROM registry.access.redhat.com/ubi10/ubi-minimal:10.0
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.0
 
 COPY --from=builder /usr/local/bin/claude /usr/local/bin/claude-bin
 
