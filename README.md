@@ -26,13 +26,13 @@ All images are built for `linux/amd64` and `linux/arm64`.
 components:
   - name: injected-tools
     volume:
-      size: 256Mi
+      size: 512Mi
   - name: claude-code-injector
     container:
       image: quay.io/che-incubator/dashboard-ai/claude-code:next
       command: ["/bin/cp"]
       args: ["/usr/local/bin/claude", "/injected-tools/claude"]
-      memoryLimit: 128Mi
+      memoryLimit: 1024Mi
       mountSources: false
       volumeMounts:
         - name: injected-tools
@@ -56,13 +56,13 @@ The editor container must mount the `injected-tools` volume to access the binary
 components:
   - name: injected-tools
     volume:
-      size: 256Mi
+      size: 512Mi
   - name: gemini-cli-injector
     container:
       image: quay.io/che-incubator/dashboard-ai/gemini-cli:next
       command: ["/bin/sh"]
       args: ["-c", "cp -a /opt/gemini-cli/. /injected-tools/gemini-cli/"]
-      memoryLimit: 256Mi
+      memoryLimit: 1024Mi
       mountSources: false
       volumeMounts:
         - name: injected-tools
@@ -86,13 +86,13 @@ The editor container must mount the `injected-tools` volume to access the tool a
 components:
   - name: injected-tools
     volume:
-      size: 256Mi
+      size: 512Mi
   - name: opencode-injector
     container:
       image: quay.io/che-incubator/dashboard-ai/opencode:next
       command: ["/bin/cp"]
       args: ["/usr/local/bin/opencode", "/injected-tools/opencode"]
-      memoryLimit: 128Mi
+      memoryLimit: 1024Mi
       mountSources: false
       volumeMounts:
         - name: injected-tools
