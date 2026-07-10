@@ -8,13 +8,11 @@ The original idea of injecting CLI tools into DevWorkspaces via init containers 
 
 ## Images
 
-| Tool | Pattern | Image |
-|------|---------|-------|
-| [Claude Code](https://claude.ai/code) | init | `quay.io/che-incubator/dashboard-ai/claude-code:next` |
-| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | bundle | `quay.io/che-incubator/dashboard-ai/gemini-cli:next` |
-| [OpenCode](https://opencode.ai) | init | `quay.io/che-incubator/dashboard-ai/opencode:next` |
-
-All images are built for `linux/amd64` and `linux/arm64`.
+| Tool | Pattern | Image | Architectures |
+|------|---------|-------|---------------|
+| [Claude Code](https://claude.ai/code) | init | `quay.io/che-incubator/dashboard-ai/claude-code:next` | amd64, arm64 |
+| [Gemini CLI](https://github.com/google-gemini/gemini-cli) | bundle | `quay.io/che-incubator/dashboard-ai/gemini-cli:next` | amd64, arm64, s390x |
+| [OpenCode](https://opencode.ai) | init | `quay.io/che-incubator/dashboard-ai/opencode:next` | amd64, arm64 |
 
 ---
 
@@ -127,7 +125,7 @@ dockerfiles/
 
 | Workflow | Trigger | What it does |
 |----------|---------|-------------|
-| `next-build-multiarch.yml` | Push to `main` | Single Quay.io login; builds and pushes all 3 images for amd64 + arm64 |
+| `next-build-multiarch.yml` | Push to `main` | Single Quay.io login; builds and pushes all 3 images (gemini-cli also for s390x) |
 
 ### Required Secrets
 
