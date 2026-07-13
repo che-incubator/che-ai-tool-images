@@ -10,7 +10,7 @@
 
 # Stage 1: install gemini on a multi-arch Node image for consistent npm paths.
 # ubi8/nodejs-22-minimal is used instead of node:22-slim because it supports
-# s390x (and ppc64le) in addition to amd64/arm64.
+# s390x and ppc64le in addition to amd64/arm64.
 FROM registry.access.redhat.com/ubi8/nodejs-22-minimal:1-11 AS npm-installer
 
 ARG GEMINI_CLI_VERSION=0.44.0
@@ -45,6 +45,7 @@ RUN apk add --no-cache curl xz && \
       amd64) NODE_ARCH="x64" ;; \
       arm64) NODE_ARCH="arm64" ;; \
       s390x) NODE_ARCH="s390x" ;; \
+      ppc64le) NODE_ARCH="ppc64le" ;; \
       *) echo "Unsupported architecture: ${TARGETARCH}" && exit 1 ;; \
     esac && \
     curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" \
