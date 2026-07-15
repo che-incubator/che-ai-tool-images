@@ -14,19 +14,7 @@ name: Release Build - Multiarch
 
 on:
   workflow_dispatch:
-    inputs:
-      claude_version:
-        description: "Claude Code version (leave empty to use Dockerfile default)"
-        required: false
-        default: ''
-      gemini_version:
-        description: "Gemini CLI version (leave empty to use Dockerfile default)"
-        required: false
-        default: ''
-      opencode_version:
-        description: "OpenCode version, without leading v (leave empty to use Dockerfile default)"
-        required: false
-        default: ''
+    inputs: {}
 
 env:
   REGISTRY: quay.io/che-incubator/dashboard-ai
@@ -45,9 +33,6 @@ jobs:
         uses: ./.github/actions/resolve-versions
         with:
           sha: ${{ github.sha }}
-          claude_override: ${{ github.event.inputs.claude_version }}
-          gemini_override: ${{ github.event.inputs.gemini_version }}
-          opencode_override: ${{ github.event.inputs.opencode_version }}
       -
         name: "Set up QEMU"
         uses: docker/setup-qemu-action@v3
@@ -69,9 +54,8 @@ jobs:
           file: ./dockerfiles/claude-code/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
+          pull: true
           provenance: false
-          build-args: |
-            CLAUDE_CODE_VERSION=${{ steps.versions.outputs.claude }}
           tags: |
             ${{ env.REGISTRY }}/claude-code:latest
             ${{ env.REGISTRY }}/claude-code:${{ steps.versions.outputs.claude_tag }}
@@ -83,9 +67,8 @@ jobs:
           file: ./dockerfiles/gemini-cli/Dockerfile
           platforms: linux/amd64,linux/arm64,linux/s390x
           push: true
+          pull: true
           provenance: false
-          build-args: |
-            GEMINI_CLI_VERSION=${{ steps.versions.outputs.gemini }}
           tags: |
             ${{ env.REGISTRY }}/gemini-cli:latest
             ${{ env.REGISTRY }}/gemini-cli:${{ steps.versions.outputs.gemini_tag }}
@@ -97,9 +80,8 @@ jobs:
           file: ./dockerfiles/opencode/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
+          pull: true
           provenance: false
-          build-args: |
-            OPENCODE_VERSION=v${{ steps.versions.outputs.opencode }}
           tags: |
             ${{ env.REGISTRY }}/opencode:latest
             ${{ env.REGISTRY }}/opencode:${{ steps.versions.outputs.opencode_tag }}
