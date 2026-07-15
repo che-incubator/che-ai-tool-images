@@ -57,6 +57,7 @@ jobs:
           file: ./dockerfiles/claude-code/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
+          pull: true
           provenance: false
           tags: |
             ${{ env.REGISTRY }}/claude-code:next
@@ -69,6 +70,7 @@ jobs:
           file: ./dockerfiles/gemini-cli/Dockerfile
           platforms: linux/amd64,linux/arm64,linux/s390x
           push: true
+          pull: true
           provenance: false
           tags: |
             ${{ env.REGISTRY }}/gemini-cli:next
@@ -81,6 +83,7 @@ jobs:
           file: ./dockerfiles/opencode/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
+          pull: true
           provenance: false
           tags: |
             ${{ env.REGISTRY }}/opencode:next
