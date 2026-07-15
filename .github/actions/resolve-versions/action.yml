@@ -8,24 +8,25 @@
 #
 name: 'Resolve Tool Versions'
 description: >
-  Extracts tool versions from Dockerfile ARG defaults, optionally overrides
-  them, validates they are non-empty, and computes immutable dated build tags
-  in the form  {version}-{YYYYMMDD}-{sha7}.
+  Resolves tool versions from tools-injector images via skopeo inspect,
+  reading the org.opencontainers.image.version label. Falls back to the
+  image digest prefixed with sha- if the label is absent. Computes
+  immutable dated build tags in the form {version}-{YYYYMMDD}-{sha7}.
 
 inputs:
   sha:
     description: 'Full Git SHA — first 7 chars are appended to the build tag'
     required: true
   claude_override:
-    description: 'Override CLAUDE_CODE_VERSION (empty = use Dockerfile default)'
+    description: 'Override CLAUDE_CODE_VERSION (empty = use tools-injector label)'
     required: false
     default: ''
   gemini_override:
-    description: 'Override GEMINI_CLI_VERSION (empty = use Dockerfile default)'
+    description: 'Override GEMINI_CLI_VERSION (empty = use tools-injector label)'
     required: false
     default: ''
   opencode_override:
-    description: 'Override OPENCODE_VERSION without leading v (empty = use Dockerfile default)'
+    description: 'Override OPENCODE_VERSION without leading v (empty = use tools-injector label)'
     required: false
     default: ''
 
@@ -60,17 +61,68 @@ runs:
         INPUT_OPENCODE: ${{ inputs.opencode_override }}
         INPUT_SHA: ${{ inputs.sha }}
       run: |
-        DF_CLAUDE=$(grep -m1 'ARG CLAUDE_CODE_VERSION=' dockerfiles/claude-code/Dockerfile | cut -d= -f2)
-        DF_GEMINI=$(grep -m1 'ARG GEMINI_CLI_VERSION=' dockerfiles/gemini-cli/Dockerfile | cut -d= -f2)
-        DF_OPENCODE=$(grep -m1 'ARG OPENCODE_VERSION=' dockerfiles/opencode/Dockerfile | cut -d= -f2 | sed 's/^v//')
+        # Resolve version from a tools-injector image via skopeo inspect.
+        # Reads org.opencontainers.image.version label; falls back to sha-<digest7>.
+        resolve_version_from_image() {
+          local image="$1"
+          local version=""
+          if command -v skopeo &>/dev/null; then
+            version=$(skopeo inspect --no-creds "docker://${image}" 2>/dev/null \
+              | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('Labels',{}).get('org.opencontainers.image.version',''))" 2>/dev/null || true)
+          fi
+          if [[ -z "$version" ]] && command -v docker &>/dev/null; then
+            version=$(docker manifest inspect "${image}" 2>/dev/null \
+              | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+for m in d.get('manifests', [d]):
+    lbl = m.get('annotations', {})
+    if not lbl:
+        lbl = m.get('config', {}).get('Labels', {})
+    v = lbl.get('org.opencontainers.image.version', '')
+    if v:
+        print(v)
+        break
+" 2>/dev/null || true)
+          fi
+          if [[ -z "$version" ]]; then
+            local digest=""
+            if command -v skopeo &>/dev/null; then
+              digest=$(skopeo inspect --no-creds --format "{{.Digest}}" "docker://${image}" 2>/dev/null | sed 's/sha256://' | cut -c1-7 || true)
+            fi
+            if [[ -n "$digest" ]]; then
+              version="sha-${digest}"
+            fi
+          fi
+          echo "$version"
+        }
 
-        CLAUDE="${INPUT_CLAUDE:-$DF_CLAUDE}"
-        GEMINI="${INPUT_GEMINI:-$DF_GEMINI}"
-        OPENCODE="${INPUT_OPENCODE:-$DF_OPENCODE}"
+        CLAUDE_IMAGE="quay.io/che-incubator/tools-injector/claude-code:next"
+        GEMINI_IMAGE="quay.io/che-incubator/tools-injector/gemini-cli:next"
+        OPENCODE_IMAGE="quay.io/che-incubator/tools-injector/opencode:next"
 
-        [[ -n "$CLAUDE" ]]   || { echo "::error::Failed to resolve CLAUDE_CODE_VERSION — check dockerfiles/claude-code/Dockerfile"; exit 1; }
-        [[ -n "$GEMINI" ]]   || { echo "::error::Failed to resolve GEMINI_CLI_VERSION — check dockerfiles/gemini-cli/Dockerfile"; exit 1; }
-        [[ -n "$OPENCODE" ]] || { echo "::error::Failed to resolve OPENCODE_VERSION — check dockerfiles/opencode/Dockerfile"; exit 1; }
+        if [[ -n "$INPUT_CLAUDE" ]]; then
+          CLAUDE="$INPUT_CLAUDE"
+        else
+          CLAUDE=$(resolve_version_from_image "$CLAUDE_IMAGE")
+        fi
+
+        if [[ -n "$INPUT_GEMINI" ]]; then
+          GEMINI="$INPUT_GEMINI"
+        else
+          GEMINI=$(resolve_version_from_image "$GEMINI_IMAGE")
+        fi
+
+        if [[ -n "$INPUT_OPENCODE" ]]; then
+          OPENCODE="$INPUT_OPENCODE"
+        else
+          OPENCODE=$(resolve_version_from_image "$OPENCODE_IMAGE")
+          OPENCODE="${OPENCODE#v}"
+        fi
+
+        [[ -n "$CLAUDE" ]]   || { echo "::error::Failed to resolve claude version from ${CLAUDE_IMAGE} — label org.opencontainers.image.version absent and digest unavailable"; exit 1; }
+        [[ -n "$GEMINI" ]]   || { echo "::error::Failed to resolve gemini version from ${GEMINI_IMAGE} — label org.opencontainers.image.version absent and digest unavailable"; exit 1; }
+        [[ -n "$OPENCODE" ]] || { echo "::error::Failed to resolve opencode version from ${OPENCODE_IMAGE} — label org.opencontainers.image.version absent and digest unavailable"; exit 1; }
 
         DATE=$(date +%Y%m%d)
         SHA7="${INPUT_SHA:0:7}"
