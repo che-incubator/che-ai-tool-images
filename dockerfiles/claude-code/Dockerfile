@@ -8,27 +8,13 @@
 # Contributors:
 #   Red Hat, Inc. - initial API and implementation
 
-FROM alpine:3.21 AS builder
-
-ARG CLAUDE_CODE_VERSION=2.1.81
-ARG TARGETARCH
-
-RUN apk add --no-cache curl
-
-RUN set -e && \
-    case "${TARGETARCH}" in \
-      amd64) PLATFORM="linux-x64" ;; \
-      arm64) PLATFORM="linux-arm64" ;; \
-      *) echo "Unsupported architecture: ${TARGETARCH}" && exit 1 ;; \
-    esac && \
-    curl -fsSL -o /usr/local/bin/claude \
-      "https://storage.googleapis.com/claude-code-dist-86c565f3-f756-42ad-8dfa-d59b1c096819/claude-code-releases/${CLAUDE_CODE_VERSION}/${PLATFORM}/claude" && \
-    chmod +x /usr/local/bin/claude
+# VERSION: inherited from tools-injector/claude-code:next
+FROM quay.io/che-incubator/tools-injector/claude-code:next AS source
 
 # Stage 2: Minimal runtime image
 FROM registry.access.redhat.com/ubi9/ubi-minimal:9.6
 
-COPY --from=builder /usr/local/bin/claude /usr/local/bin/claude-bin
+COPY --from=source /usr/local/bin/claude /usr/local/bin/claude-bin
 
 # Wrapper script that redirects HOME and config dirs to a writable location
 # for OpenShift arbitrary UIDs where $HOME is not writable.
