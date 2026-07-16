@@ -67,40 +67,41 @@ runs:
           local TOOL="$1"
           local KEY="$2"
           local VERSION_CMD="$3"
+          local REQUIRED_ARCHES="$4"
           local IMAGE="${REGISTRY}/${TOOL}:${SOURCE_TAG}"
 
-          # Resolve digest for reproducible builds
-          local DIGEST
-          DIGEST=$(skopeo inspect --override-os linux --override-arch amd64 \
-            "docker://${IMAGE}" | jq -r '.Digest')
-          if [ -z "$DIGEST" ] || [ "$DIGEST" = "null" ]; then
-            echo "::error::Failed to resolve digest for ${IMAGE}"
+          # Resolve the manifest list digest (OCI index) for reproducible
+          # multi-arch builds. Using --override-arch would return a single-arch
+          # manifest digest, causing buildx to use that arch for all platforms.
+          local RAW_MANIFEST DIGEST
+          RAW_MANIFEST=$(skopeo inspect --raw "docker://${IMAGE}")
+          DIGEST="sha256:$(echo -n "$RAW_MANIFEST" | sha256sum | awk '{print $1}')"
+
+          # Validate required platforms exist in the manifest list
+          local PLATFORMS
+          PLATFORMS=$(echo "$RAW_MANIFEST" | \
+            jq -r '[.manifests[]?.platform | select(.os == "linux") | .architecture] | sort | join(",")' 2>/dev/null || echo "")
+          for ARCH in $REQUIRED_ARCHES; do
+            if [[ ",${PLATFORMS}," != *",${ARCH},"* ]]; then
+              echo "::error::${IMAGE} is missing required platform linux/${ARCH} (found: ${PLATFORMS:-none})"
+              exit 1
+            fi
+          done
+
+          # Extract version by running the binary from the pinned digest
+          local VERSION SOURCE
+          SOURCE="${REGISTRY}/${TOOL}@${DIGEST}"
+          VERSION=$(docker run --rm "${SOURCE}" ${VERSION_CMD} 2>/dev/null \
+            | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
+          if [ -z "$VERSION" ]; then
+            echo "::error::Could not extract version from ${SOURCE} via '${VERSION_CMD}'."
             exit 1
           fi
 
-          # Validate required platforms exist in the manifest
-          local PLATFORMS
-          PLATFORMS=$(skopeo inspect --override-os linux --override-arch amd64 \
-            --raw "docker://${IMAGE}" | \
-            jq -r '[.manifests[]?.platform | select(.architecture == "amd64" or .architecture == "arm64") | .architecture] | sort | join(",")' 2>/dev/null || echo "")
-          if [[ "$PLATFORMS" != *"amd64"* ]] || [[ "$PLATFORMS" != *"arm64"* ]]; then
-            echo "::warning::Platform check inconclusive for ${IMAGE} (got: ${PLATFORMS:-none}). Proceeding — buildx will fail if platforms are missing."
-          fi
-
-          # Extract version by running the binary
-          local VERSION
-          VERSION=$(docker run --rm "${IMAGE}" ${VERSION_CMD} 2>/dev/null \
-            | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
-          if [ -z "$VERSION" ]; then
-            echo "::warning::Could not extract version from ${IMAGE} via '${VERSION_CMD}'. Using 'unknown'."
-            VERSION="unknown"
-          fi
-
-          local DATE SHA7 TAG SOURCE
+          local DATE SHA7 TAG
           DATE=$(date +%Y%m%d)
           SHA7="${INPUT_SHA:0:7}"
           TAG="${VERSION}-${DATE}-${SHA7}"
-          SOURCE="${REGISTRY}/${TOOL}@${DIGEST}"
 
           echo "${TOOL} version: ${VERSION}, tag: ${TAG}, source: ${SOURCE}"
 
@@ -109,6 +110,6 @@ runs:
           echo "${KEY}_source=${SOURCE}" >> "$GITHUB_OUTPUT"
         }
 
-        resolve_tool "claude-code" "claude" "claude --version"
-        resolve_tool "gemini-cli" "gemini" "/opt/gemini-cli/bin/gemini --version"
-        resolve_tool "opencode" "opencode" "opencode --version"
+        resolve_tool "claude-code" "claude" "claude --version" "amd64 arm64"
+        resolve_tool "gemini-cli" "gemini" "/opt/gemini-cli/bin/gemini --version" "amd64 arm64 s390x"
+        resolve_tool "opencode" "opencode" "opencode --version" "amd64 arm64"
