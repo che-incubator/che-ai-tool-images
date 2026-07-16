@@ -8,26 +8,19 @@
 #
 name: 'Resolve Tool Versions'
 description: >
-  Extracts tool versions from Dockerfile ARG defaults, optionally overrides
-  them, validates they are non-empty, and computes immutable dated build tags
-  in the form  {version}-{YYYYMMDD}-{sha7}.
+  Resolves tool versions by inspecting tools-injector container images.
+  Extracts version strings by running the binary inside each image,
+  resolves image digests for reproducible builds, and computes immutable
+  dated build tags in the form {version}-{YYYYMMDD}-{sha7}.
 
 inputs:
   sha:
     description: 'Full Git SHA — first 7 chars are appended to the build tag'
     required: true
-  claude_override:
-    description: 'Override CLAUDE_CODE_VERSION (empty = use Dockerfile default)'
+  source_tag:
+    description: 'Tag to pull from tools-injector images (default: next)'
     required: false
-    default: ''
-  gemini_override:
-    description: 'Override GEMINI_CLI_VERSION (empty = use Dockerfile default)'
-    required: false
-    default: ''
-  opencode_override:
-    description: 'Override OPENCODE_VERSION without leading v (empty = use Dockerfile default)'
-    required: false
-    default: ''
+    default: 'next'
 
 outputs:
   claude:
@@ -37,17 +30,26 @@ outputs:
     description: 'Resolved Gemini CLI version'
     value: ${{ steps.resolve.outputs.gemini }}
   opencode:
-    description: 'Resolved OpenCode version (no leading v)'
+    description: 'Resolved OpenCode version'
     value: ${{ steps.resolve.outputs.opencode }}
   claude_tag:
-    description: 'Immutable build tag for claude-code: {version}-{YYYYMMDD}-{sha7}'
+    description: 'Immutable build tag for claude-code'
     value: ${{ steps.resolve.outputs.claude_tag }}
   gemini_tag:
-    description: 'Immutable build tag for gemini-cli: {version}-{YYYYMMDD}-{sha7}'
+    description: 'Immutable build tag for gemini-cli'
     value: ${{ steps.resolve.outputs.gemini_tag }}
   opencode_tag:
-    description: 'Immutable build tag for opencode: {version}-{YYYYMMDD}-{sha7}'
+    description: 'Immutable build tag for opencode'
     value: ${{ steps.resolve.outputs.opencode_tag }}
+  claude_source:
+    description: 'Digest-pinned source image for claude-code'
+    value: ${{ steps.resolve.outputs.claude_source }}
+  gemini_source:
+    description: 'Digest-pinned source image for gemini-cli'
+    value: ${{ steps.resolve.outputs.gemini_source }}
+  opencode_source:
+    description: 'Digest-pinned source image for opencode'
+    value: ${{ steps.resolve.outputs.opencode_source }}
 
 runs:
   using: composite
@@ -55,29 +57,58 @@ runs:
     - id: resolve
       shell: bash
       env:
-        INPUT_CLAUDE: ${{ inputs.claude_override }}
-        INPUT_GEMINI: ${{ inputs.gemini_override }}
-        INPUT_OPENCODE: ${{ inputs.opencode_override }}
         INPUT_SHA: ${{ inputs.sha }}
+        SOURCE_TAG: ${{ inputs.source_tag }}
+        REGISTRY: quay.io/che-incubator/tools-injector
       run: |
-        DF_CLAUDE=$(grep -m1 'ARG CLAUDE_CODE_VERSION=' dockerfiles/claude-code/Dockerfile | cut -d= -f2)
-        DF_GEMINI=$(grep -m1 'ARG GEMINI_CLI_VERSION=' dockerfiles/gemini-cli/Dockerfile | cut -d= -f2)
-        DF_OPENCODE=$(grep -m1 'ARG OPENCODE_VERSION=' dockerfiles/opencode/Dockerfile | cut -d= -f2 | sed 's/^v//')
+        set -euo pipefail
 
-        CLAUDE="${INPUT_CLAUDE:-$DF_CLAUDE}"
-        GEMINI="${INPUT_GEMINI:-$DF_GEMINI}"
-        OPENCODE="${INPUT_OPENCODE:-$DF_OPENCODE}"
+        resolve_tool() {
+          local TOOL="$1"
+          local KEY="$2"
+          local VERSION_CMD="$3"
+          local IMAGE="${REGISTRY}/${TOOL}:${SOURCE_TAG}"
 
-        [[ -n "$CLAUDE" ]]   || { echo "::error::Failed to resolve CLAUDE_CODE_VERSION — check dockerfiles/claude-code/Dockerfile"; exit 1; }
-        [[ -n "$GEMINI" ]]   || { echo "::error::Failed to resolve GEMINI_CLI_VERSION — check dockerfiles/gemini-cli/Dockerfile"; exit 1; }
-        [[ -n "$OPENCODE" ]] || { echo "::error::Failed to resolve OPENCODE_VERSION — check dockerfiles/opencode/Dockerfile"; exit 1; }
+          # Resolve digest for reproducible builds
+          local DIGEST
+          DIGEST=$(skopeo inspect --override-os linux --override-arch amd64 \
+            "docker://${IMAGE}" | jq -r '.Digest')
+          if [ -z "$DIGEST" ] || [ "$DIGEST" = "null" ]; then
+            echo "::error::Failed to resolve digest for ${IMAGE}"
+            exit 1
+          fi
 
-        DATE=$(date +%Y%m%d)
-        SHA7="${INPUT_SHA:0:7}"
+          # Validate required platforms exist in the manifest
+          local PLATFORMS
+          PLATFORMS=$(skopeo inspect --override-os linux --override-arch amd64 \
+            --raw "docker://${IMAGE}" | \
+            jq -r '[.manifests[]?.platform | select(.architecture == "amd64" or .architecture == "arm64") | .architecture] | sort | join(",")' 2>/dev/null || echo "")
+          if [[ "$PLATFORMS" != *"amd64"* ]] || [[ "$PLATFORMS" != *"arm64"* ]]; then
+            echo "::warning::Platform check inconclusive for ${IMAGE} (got: ${PLATFORMS:-none}). Proceeding — buildx will fail if platforms are missing."
+          fi
 
-        echo "claude=${CLAUDE}"          >> "$GITHUB_OUTPUT"
-        echo "gemini=${GEMINI}"          >> "$GITHUB_OUTPUT"
-        echo "opencode=${OPENCODE}"      >> "$GITHUB_OUTPUT"
-        echo "claude_tag=${CLAUDE}-${DATE}-${SHA7}"    >> "$GITHUB_OUTPUT"
-        echo "gemini_tag=${GEMINI}-${DATE}-${SHA7}"    >> "$GITHUB_OUTPUT"
-        echo "opencode_tag=${OPENCODE}-${DATE}-${SHA7}" >> "$GITHUB_OUTPUT"
+          # Extract version by running the binary
+          local VERSION
+          VERSION=$(docker run --rm "${IMAGE}" ${VERSION_CMD} 2>/dev/null \
+            | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
+          if [ -z "$VERSION" ]; then
+            echo "::warning::Could not extract version from ${IMAGE} via '${VERSION_CMD}'. Using 'unknown'."
+            VERSION="unknown"
+          fi
+
+          local DATE SHA7 TAG SOURCE
+          DATE=$(date +%Y%m%d)
+          SHA7="${INPUT_SHA:0:7}"
+          TAG="${VERSION}-${DATE}-${SHA7}"
+          SOURCE="${REGISTRY}/${TOOL}@${DIGEST}"
+
+          echo "${TOOL} version: ${VERSION}, tag: ${TAG}, source: ${SOURCE}"
+
+          echo "${KEY}=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "${KEY}_tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "${KEY}_source=${SOURCE}" >> "$GITHUB_OUTPUT"
+        }
+
+        resolve_tool "claude-code" "claude" "claude --version"
+        resolve_tool "gemini-cli" "gemini" "/opt/gemini-cli/bin/gemini --version"
+        resolve_tool "opencode" "opencode" "opencode --version"
