@@ -15,18 +15,10 @@ name: Release Build - Multiarch
 on:
   workflow_dispatch:
     inputs:
-      claude_version:
-        description: "Claude Code version (leave empty to use Dockerfile default)"
+      source_tag:
+        description: "Tag to pull from tools-injector images (default: next)"
         required: false
-        default: ''
-      gemini_version:
-        description: "Gemini CLI version (leave empty to use Dockerfile default)"
-        required: false
-        default: ''
-      opencode_version:
-        description: "OpenCode version, without leading v (leave empty to use Dockerfile default)"
-        required: false
-        default: ''
+        default: 'next'
 
 env:
   REGISTRY: quay.io/che-incubator/dashboard-ai
@@ -45,9 +37,7 @@ jobs:
         uses: ./.github/actions/resolve-versions
         with:
           sha: ${{ github.sha }}
-          claude_override: ${{ github.event.inputs.claude_version }}
-          gemini_override: ${{ github.event.inputs.gemini_version }}
-          opencode_override: ${{ github.event.inputs.opencode_version }}
+          source_tag: ${{ github.event.inputs.source_tag || 'next' }}
       -
         name: "Set up QEMU"
         uses: docker/setup-qemu-action@v3
@@ -71,7 +61,7 @@ jobs:
           push: true
           provenance: false
           build-args: |
-            CLAUDE_CODE_VERSION=${{ steps.versions.outputs.claude }}
+            SOURCE_IMAGE=${{ steps.versions.outputs.claude_source }}
           tags: |
             ${{ env.REGISTRY }}/claude-code:latest
             ${{ env.REGISTRY }}/claude-code:${{ steps.versions.outputs.claude_tag }}
@@ -85,7 +75,7 @@ jobs:
           push: true
           provenance: false
           build-args: |
-            GEMINI_CLI_VERSION=${{ steps.versions.outputs.gemini }}
+            SOURCE_IMAGE=${{ steps.versions.outputs.gemini_source }}
           tags: |
             ${{ env.REGISTRY }}/gemini-cli:latest
             ${{ env.REGISTRY }}/gemini-cli:${{ steps.versions.outputs.gemini_tag }}
@@ -99,7 +89,7 @@ jobs:
           push: true
           provenance: false
           build-args: |
-            OPENCODE_VERSION=v${{ steps.versions.outputs.opencode }}
+            SOURCE_IMAGE=${{ steps.versions.outputs.opencode_source }}
           tags: |
             ${{ env.REGISTRY }}/opencode:latest
             ${{ env.REGISTRY }}/opencode:${{ steps.versions.outputs.opencode_tag }}
