@@ -1,10 +1,11 @@
 # che-ai-tool-images
 
-UBI10-based init container images that inject AI CLI tools into Eclipse Che DevWorkspaces.
+UBI-based init container images that inject AI CLI tools into Eclipse Che DevWorkspaces.
 
 ## Background
 
-The original idea of injecting CLI tools into DevWorkspaces via init containers comes from [akurinnoy/tools-injector](https://github.com/akurinnoy/tools-injector.git). The Dockerfiles in this repository are simplified and modified versions of that approach, adapted to work with the [che-dashboard](https://github.com/eclipse-che/che-dashboard) and support all DevWorkspace samples out of the box.
+The init-container approach for injecting CLI tools into DevWorkspaces originates from [tools-injector](https://github.com/che-incubator/tools-injector.git).
+The Dockerfiles in this repository are derived from that work, with modifications to integrate with [che-dashboard](https://github.com/eclipse-che/che-dashboard.git) and support all DevWorkspace samples.
 
 ## Images
 
@@ -125,7 +126,8 @@ dockerfiles/
 
 | Workflow | Trigger | What it does |
 |----------|---------|-------------|
-| `next-build-multiarch.yml` | Push to `main` | Single Quay.io login; builds and pushes all 3 images (gemini-cli also for s390x and ppc64le) |
+| `next-build-multiarch.yml` | Push to `main` | Builds and pushes all 3 images with `:next` tag (gemini-cli also for s390x and ppc64le) |
+| `release-build-multiarch.yml` | Manual dispatch | Builds and pushes all 3 images with `:latest` and immutable version tags |
 
 ### Required Secrets
 
