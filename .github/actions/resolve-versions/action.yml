@@ -111,5 +111,5 @@ runs:
         }
 
         resolve_tool "claude-code" "claude" "claude --version" "amd64 arm64"
-        resolve_tool "gemini-cli" "gemini" "/opt/gemini-cli/bin/gemini --version" "amd64 arm64 s390x"
+        resolve_tool "gemini-cli" "gemini" "/opt/gemini-cli/bin/gemini --version" "amd64 arm64 s390x ppc64le"
         resolve_tool "opencode" "opencode" "opencode --version" "amd64 arm64"
