@@ -13,6 +13,8 @@ The Dockerfiles in this repository are derived from that work, with modification
 |------|---------|-------|---------------|
 | [Claude Code](https://claude.ai/code) | init | `quay.io/che-incubator/dashboard-ai/claude-code:next` | amd64, arm64 |
 | [Gemini CLI](https://github.com/google-gemini/gemini-cli) | bundle | `quay.io/che-incubator/dashboard-ai/gemini-cli:next` | amd64, arm64, s390x, ppc64le |
+| [Goose](https://github.com/block/goose) | init | `quay.io/che-incubator/dashboard-ai/goose:next` | amd64, arm64 |
+| [Kilo Code](https://github.com/AiCodeBot/kilocode) | bundle | `quay.io/che-incubator/dashboard-ai/kilocode:next` | amd64, arm64 |
 | [OpenCode](https://opencode.ai) | init | `quay.io/che-incubator/dashboard-ai/opencode:next` | amd64, arm64 |
 
 ---
@@ -79,6 +81,66 @@ events:
 
 The editor container must mount the `injected-tools` volume to access the tool at `/injected-tools/gemini-cli/bin/gemini`.
 
+### Goose
+
+```yaml
+components:
+  - name: injected-tools
+    volume:
+      size: 512Mi
+  - name: goose-injector
+    container:
+      image: quay.io/che-incubator/dashboard-ai/goose:next
+      command: ["/bin/cp"]
+      args: ["/usr/local/bin/goose", "/injected-tools/goose"]
+      memoryLimit: 128Mi
+      mountSources: false
+      volumeMounts:
+        - name: injected-tools
+          path: /injected-tools
+
+commands:
+  - id: install-goose
+    apply:
+      component: goose-injector
+
+events:
+  preStart:
+    - install-goose
+```
+
+The editor container must mount the `injected-tools` volume to access the binary.
+
+### Kilo Code
+
+```yaml
+components:
+  - name: injected-tools
+    volume:
+      size: 512Mi
+  - name: kilocode-injector
+    container:
+      image: quay.io/che-incubator/dashboard-ai/kilocode:next
+      command: ["/bin/sh"]
+      args: ["-c", "cp -a /opt/kilocode/. /injected-tools/kilocode/"]
+      memoryLimit: 256Mi
+      mountSources: false
+      volumeMounts:
+        - name: injected-tools
+          path: /injected-tools
+
+commands:
+  - id: install-kilocode
+    apply:
+      component: kilocode-injector
+
+events:
+  preStart:
+    - install-kilocode
+```
+
+The editor container must mount the `injected-tools` volume to access the tool at `/injected-tools/kilocode/bin/kilo`.
+
 ### OpenCode
 
 ```yaml
@@ -117,6 +179,8 @@ The editor container must mount the `injected-tools` volume to access the binary
 dockerfiles/
 ├── claude-code/Dockerfile
 ├── gemini-cli/Dockerfile
+├── goose/Dockerfile
+├── kilocode/Dockerfile
 └── opencode/Dockerfile
 ```
 
@@ -126,8 +190,8 @@ dockerfiles/
 
 | Workflow | Trigger | What it does |
 |----------|---------|-------------|
-| `next-build-multiarch.yml` | Push to `main` | Builds and pushes all 3 images with `:next` tag (gemini-cli also for s390x and ppc64le) |
-| `release-build-multiarch.yml` | Manual dispatch | Builds and pushes all 3 images with `:latest` and immutable version tags |
+| `next-build-multiarch.yml` | Push to `main` | Builds and pushes all 5 images with `:next` tag (gemini-cli also for s390x and ppc64le) |
+| `release-build-multiarch.yml` | Manual dispatch | Builds and pushes all 5 images with `:latest` and immutable version tags |
 
 ### Required Secrets
 

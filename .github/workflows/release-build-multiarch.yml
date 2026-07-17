@@ -94,6 +94,34 @@ jobs:
             ${{ env.REGISTRY }}/opencode:latest
             ${{ env.REGISTRY }}/opencode:${{ steps.versions.outputs.opencode_tag }}
       -
+        name: "Build and push goose"
+        uses: docker/build-push-action@v5
+        with:
+          context: ./dockerfiles/goose
+          file: ./dockerfiles/goose/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: false
+          build-args: |
+            SOURCE_IMAGE=${{ steps.versions.outputs.goose_source }}
+          tags: |
+            ${{ env.REGISTRY }}/goose:latest
+            ${{ env.REGISTRY }}/goose:${{ steps.versions.outputs.goose_tag }}
+      -
+        name: "Build and push kilocode"
+        uses: docker/build-push-action@v5
+        with:
+          context: ./dockerfiles/kilocode
+          file: ./dockerfiles/kilocode/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: false
+          build-args: |
+            SOURCE_IMAGE=${{ steps.versions.outputs.kilocode_source }}
+          tags: |
+            ${{ env.REGISTRY }}/kilocode:latest
+            ${{ env.REGISTRY }}/kilocode:${{ steps.versions.outputs.kilocode_tag }}
+      -
         name: "Release summary"
         run: |
           echo "## Release Build Summary" >> "$GITHUB_STEP_SUMMARY"
@@ -102,5 +130,7 @@ jobs:
           echo "| \`claude-code\` | \`latest\`, \`${{ steps.versions.outputs.claude_tag }}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| \`gemini-cli\`  | \`latest\`, \`${{ steps.versions.outputs.gemini_tag }}\` |"  >> "$GITHUB_STEP_SUMMARY"
           echo "| \`opencode\`    | \`latest\`, \`${{ steps.versions.outputs.opencode_tag }}\` |"   >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`goose\`       | \`latest\`, \`${{ steps.versions.outputs.goose_tag }}\` |"      >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`kilocode\`    | \`latest\`, \`${{ steps.versions.outputs.kilocode_tag }}\` |"   >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "> After this run, apply \`registry.json\` to your cluster to use the \`:latest\` images." >> "$GITHUB_STEP_SUMMARY"

@@ -9,7 +9,7 @@
 name: 'Resolve Tool Versions'
 description: >
   Resolves tool versions by inspecting tools-injector container images.
-  Extracts version strings by running the binary inside each image,
+  Reads the TOOL_VERSION env var baked into each image,
   resolves image digests for reproducible builds, and computes immutable
   dated build tags in the form {version}-{YYYYMMDD}-{sha7}.
 
@@ -50,6 +50,24 @@ outputs:
   opencode_source:
     description: 'Digest-pinned source image for opencode'
     value: ${{ steps.resolve.outputs.opencode_source }}
+  goose:
+    description: 'Resolved Goose version'
+    value: ${{ steps.resolve.outputs.goose }}
+  goose_tag:
+    description: 'Immutable build tag for goose'
+    value: ${{ steps.resolve.outputs.goose_tag }}
+  goose_source:
+    description: 'Digest-pinned source image for goose'
+    value: ${{ steps.resolve.outputs.goose_source }}
+  kilocode:
+    description: 'Resolved Kilocode version'
+    value: ${{ steps.resolve.outputs.kilocode }}
+  kilocode_tag:
+    description: 'Immutable build tag for kilocode'
+    value: ${{ steps.resolve.outputs.kilocode_tag }}
+  kilocode_source:
+    description: 'Digest-pinned source image for kilocode'
+    value: ${{ steps.resolve.outputs.kilocode_source }}
 
 runs:
   using: composite
@@ -66,8 +84,7 @@ runs:
         resolve_tool() {
           local TOOL="$1"
           local KEY="$2"
-          local VERSION_CMD="$3"
-          local REQUIRED_ARCHES="$4"
+          local REQUIRED_ARCHES="$3"
           local IMAGE="${REGISTRY}/${TOOL}:${SOURCE_TAG}"
 
           # Resolve the manifest list digest (OCI index) for reproducible
@@ -78,7 +95,7 @@ runs:
           DIGEST="sha256:$(echo -n "$RAW_MANIFEST" | sha256sum | awk '{print $1}')"
 
           # Validate required platforms exist in the manifest list
-          local PLATFORMS
+          local PLATFORMS ARCH
           PLATFORMS=$(echo "$RAW_MANIFEST" | \
             jq -r '[.manifests[]?.platform | select(.os == "linux") | .architecture] | sort | join(",")' 2>/dev/null || echo "")
           for ARCH in $REQUIRED_ARCHES; do
@@ -88,13 +105,15 @@ runs:
             fi
           done
 
-          # Extract version by running the binary from the pinned digest
+          # Extract version from TOOL_VERSION env var baked into the image
           local VERSION SOURCE
           SOURCE="${REGISTRY}/${TOOL}@${DIGEST}"
-          VERSION=$(docker run --rm "${SOURCE}" ${VERSION_CMD} 2>/dev/null \
-            | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
+          VERSION=$(docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "${SOURCE}" 2>/dev/null \
+            | grep '^TOOL_VERSION=' | cut -d= -f2 || true)
+          # Strip leading 'v' prefix if present (e.g. v1.39.0 -> 1.39.0)
+          VERSION="${VERSION#v}"
           if [ -z "$VERSION" ]; then
-            echo "::error::Could not extract version from ${SOURCE} via '${VERSION_CMD}'."
+            echo "::error::Could not read TOOL_VERSION from ${SOURCE}. Is the image built with ENV TOOL_VERSION?"
             exit 1
           fi
 
@@ -110,6 +129,8 @@ runs:
           echo "${KEY}_source=${SOURCE}" >> "$GITHUB_OUTPUT"
         }
 
-        resolve_tool "claude-code" "claude" "claude --version" "amd64 arm64"
-        resolve_tool "gemini-cli" "gemini" "/opt/gemini-cli/bin/gemini --version" "amd64 arm64 s390x ppc64le"
-        resolve_tool "opencode" "opencode" "opencode --version" "amd64 arm64"
+        resolve_tool "claude-code" "claude" "amd64 arm64"
+        resolve_tool "gemini-cli" "gemini" "amd64 arm64 s390x ppc64le"
+        resolve_tool "opencode" "opencode" "amd64 arm64"
+        resolve_tool "goose" "goose" "amd64 arm64"
+        resolve_tool "kilocode" "kilocode" "amd64 arm64"

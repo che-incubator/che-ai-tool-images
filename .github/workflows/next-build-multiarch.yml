@@ -92,6 +92,34 @@ jobs:
             ${{ env.REGISTRY }}/opencode:next
             ${{ env.REGISTRY }}/opencode:${{ steps.versions.outputs.opencode_tag }}
       -
+        name: "Build and push goose"
+        uses: docker/build-push-action@v5
+        with:
+          context: ./dockerfiles/goose
+          file: ./dockerfiles/goose/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: false
+          build-args: |
+            SOURCE_IMAGE=${{ steps.versions.outputs.goose_source }}
+          tags: |
+            ${{ env.REGISTRY }}/goose:next
+            ${{ env.REGISTRY }}/goose:${{ steps.versions.outputs.goose_tag }}
+      -
+        name: "Build and push kilocode"
+        uses: docker/build-push-action@v5
+        with:
+          context: ./dockerfiles/kilocode
+          file: ./dockerfiles/kilocode/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          provenance: false
+          build-args: |
+            SOURCE_IMAGE=${{ steps.versions.outputs.kilocode_source }}
+          tags: |
+            ${{ env.REGISTRY }}/kilocode:next
+            ${{ env.REGISTRY }}/kilocode:${{ steps.versions.outputs.kilocode_tag }}
+      -
         name: "Build summary"
         run: |
           echo "## Next Build Summary" >> "$GITHUB_STEP_SUMMARY"
@@ -100,3 +128,5 @@ jobs:
           echo "| \`claude-code\` | \`next\`, \`${{ steps.versions.outputs.claude_tag }}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| \`gemini-cli\`  | \`next\`, \`${{ steps.versions.outputs.gemini_tag }}\` |"  >> "$GITHUB_STEP_SUMMARY"
           echo "| \`opencode\`    | \`next\`, \`${{ steps.versions.outputs.opencode_tag }}\` |"   >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`goose\`       | \`next\`, \`${{ steps.versions.outputs.goose_tag }}\` |"      >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`kilocode\`    | \`next\`, \`${{ steps.versions.outputs.kilocode_tag }}\` |"   >> "$GITHUB_STEP_SUMMARY"
