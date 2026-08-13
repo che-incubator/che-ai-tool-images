@@ -12,7 +12,11 @@ The original idea of injecting CLI tools into DevWorkspaces via init containers 
 |------|---------|-------|---------------|
 | [Claude Code](https://claude.ai/code) | init | `quay.io/che-incubator/dashboard-ai/claude-code:next` | amd64, arm64 |
 | [Gemini CLI](https://github.com/google-gemini/gemini-cli) | bundle | `quay.io/che-incubator/dashboard-ai/gemini-cli:next` | amd64, arm64, s390x, ppc64le |
-| [OpenCode](https://opencode.ai) | init | `quay.io/che-incubator/dashboard-ai/opencode:next` | amd64, arm64 |
+| [OpenCode](https://opencode.ai) | init | `quay.io/che-incubator/dashboard-ai/opencode:next` | amd64, arm64, **s390x** |
+
+> **s390x (OpenCode):** OpenCode distributes pre-built Bun binaries only for x64 and arm64.
+> On IBM Z (s390x), the image rebuilds OpenCode from source using Node.js 24, enabling the
+> full native @opentui TUI on big-endian platforms.
 
 ---
 
@@ -112,12 +116,16 @@ The editor container must mount the `injected-tools` volume to access the binary
 
 ## Structure
 
-```
+```text
 dockerfiles/
-├── claude-code/Dockerfile
-├── gemini-cli/Dockerfile
-└── opencode/Dockerfile
+├── claude-code/Dockerfile       # Claude Code — binary copy
+├── gemini-cli/Dockerfile        # Gemini CLI — Node.js bundle, all arches
+├── opencode/Dockerfile          # OpenCode — x86_64/arm64 (Bun binary)
+└── opencode-node/Dockerfile     # OpenCode — s390x (Node.js build)
 ```
+
+The `opencode-node` variant rebuilds OpenCode from source for s390x where the upstream
+Bun binary is unavailable.
 
 ---
 
@@ -125,7 +133,9 @@ dockerfiles/
 
 | Workflow | Trigger | What it does |
 |----------|---------|-------------|
-| `next-build-multiarch.yml` | Push to `main` | Single Quay.io login; builds and pushes all 3 images (gemini-cli also for s390x and ppc64le) |
+| `next-build-multiarch.yml` | Push to `main` | Builds and pushes all images with `:next` tag; OpenCode merges Bun binary (amd64/arm64) + Node.js build (s390x) |
+| `release-build-multiarch.yml` | Manual (`workflow_dispatch`) | Builds and pushes `:latest` and versioned tags for all images |
+| `insiders-build-opencode.yml` | Push to `main` (opencode-node changes) or manual | Builds `opencode:insiders` from the Node.js variant for amd64, arm64, and s390x |
 
 ### Required Secrets
 
@@ -216,7 +226,7 @@ Delete the ConfigMap to hide all AI widgets from the dashboard:
 oc delete configmap ai-tool-registry -n "${CHE_NAMESPACE:-eclipse-che}"
 ```
 
-When no ConfigMap is found, the dashboard returns an empty registry and all AI-related UI elements (AI Provider Selector on Create Workspace page, AI Provider(s) column in the Workspaces list, and AI Providers Keys tab in User Preferences) are hidden automatically.
+When no ConfigMap is found, the dashboard returns an empty registry and all AI-related UI elements are hidden automatically.
 
 ### Verifying
 
