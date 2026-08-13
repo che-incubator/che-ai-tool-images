@@ -90,7 +90,8 @@ jobs:
             ${{ env.REGISTRY }}/gemini-cli:latest
             ${{ env.REGISTRY }}/gemini-cli:${{ steps.versions.outputs.gemini_tag }}
       -
-        name: "Build and push opencode"
+        name: "Build and push opencode (amd64/arm64 — pre-built binary)"
+        id: build-opencode-x86
         uses: docker/build-push-action@v5
         with:
           context: ./dockerfiles/opencode
@@ -100,9 +101,31 @@ jobs:
           provenance: false
           build-args: |
             OPENCODE_VERSION=v${{ steps.versions.outputs.opencode }}
-          tags: |
-            ${{ env.REGISTRY }}/opencode:latest
-            ${{ env.REGISTRY }}/opencode:${{ steps.versions.outputs.opencode_tag }}
+          outputs: type=image,name=${{ env.REGISTRY }}/opencode,push-by-digest=true,push=true
+      -
+        name: "Build and push opencode (s390x — Node.js build)"
+        id: build-opencode-node
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./dockerfiles/opencode-node/Dockerfile
+          # ppc64le excluded: Zig cross-compile for powerpc64le-linux-gnu is not yet
+          # stable; a failed build silently ships a degraded image with no working TUI.
+          # Re-add once ppc64le Zig cross-compilation is confirmed reliable.
+          platforms: linux/s390x
+          push: true
+          provenance: false
+          build-args: |
+            OPENCODE_VERSION=v${{ steps.versions.outputs.opencode }}
+          outputs: type=image,name=${{ env.REGISTRY }}/opencode,push-by-digest=true,push=true
+      -
+        name: "Merge opencode multi-arch manifest"
+        run: |
+          docker buildx imagetools create \
+            --tag ${{ env.REGISTRY }}/opencode:latest \
+            --tag ${{ env.REGISTRY }}/opencode:${{ steps.versions.outputs.opencode_tag }} \
+            ${{ env.REGISTRY }}/opencode@${{ steps.build-opencode-x86.outputs.digest }} \
+            ${{ env.REGISTRY }}/opencode@${{ steps.build-opencode-node.outputs.digest }}
       -
         name: "Release summary"
         run: |
