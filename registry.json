@@ -43,7 +43,8 @@
       "binary": "claude",
       "pattern": "init",
       "injectorImage": "quay.io/che-incubator/dashboard-ai/claude-code:next",
-      "envVarName": "ANTHROPIC_API_KEY"
+      "envVarName": "ANTHROPIC_API_KEY",
+      "arch": ["amd64", "arm64"]
     },
     {
       "providerId": "google/gemini",
@@ -54,7 +55,8 @@
       "pattern": "bundle",
       "injectorImage": "quay.io/che-incubator/dashboard-ai/gemini-cli:next",
       "envVarName": "GEMINI_API_KEY",
-      "setupCommand": "mkdir -p \"$HOME/.gemini\" && test -f \"$HOME/.gemini/projects.json\" || echo '{\"projects\":{}}' > \"$HOME/.gemini/projects.json\""
+      "setupCommand": "mkdir -p \"$HOME/.gemini\" && test -f \"$HOME/.gemini/projects.json\" || echo '{\"projects\":{}}' > \"$HOME/.gemini/projects.json\"",
+      "arch": ["amd64", "arm64", "s390x", "ppc64le"]
     },
     {
       "providerId": "opencodeai/opencode",
@@ -64,7 +66,8 @@
       "binary": "opencode",
       "pattern": "init",
       "injectorImage": "quay.io/che-incubator/dashboard-ai/opencode:next",
-      "envVarName": "GOOGLE_GENERATIVE_AI_API_KEY"
+      "envVarName": "GOOGLE_GENERATIVE_AI_API_KEY",
+      "arch": ["amd64", "arm64"]
     }
   ],
   "defaultAiProviders": [
