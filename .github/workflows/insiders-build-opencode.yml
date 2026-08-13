@@ -1,0 +1,127 @@
+#
+# Copyright (c) 2025 Red Hat, Inc.
+# This program and the accompanying materials are made
+# available under the terms of the Eclipse Public License 2.0
+# which is available at https://www.eclipse.org/legal/epl-2.0/
+#
+# SPDX-License-Identifier: EPL-2.0
+#
+# Contributors:
+#   Red Hat, Inc. - initial API and implementation
+#
+
+# Builds the opencode:insiders multi-arch image from dockerfiles/opencode-node/.
+#
+# The Node.js-based build supports amd64, arm64, and s390x by compiling OpenCode
+# from source instead of using the upstream Bun binary. ppc64le is excluded because
+# Zig cross-compilation for powerpc64le-linux-gnu is not yet stable. It is
+# published under the "insiders" tag to distinguish it from the standard ":next"
+# image (which uses the upstream pre-built binary for amd64/arm64 only). The build
+# is intentionally separate because cross-compiling libopentui.so via Zig and
+# rebuilding native Node.js addons (ffi-napi, ref-napi, tree-sitter) under QEMU
+# significantly increases build time.
+
+name: Insiders Build - OpenCode (Node.js)
+
+on:
+  workflow_dispatch:
+    inputs:
+      opencode_version:
+        description: "OpenCode version without leading v (leave empty to use Dockerfile default)"
+        required: false
+        default: ''
+  push:
+    branches:
+      - main
+    paths:
+      - 'dockerfiles/opencode-node/**'
+
+env:
+  REGISTRY: quay.io/che-incubator/dashboard-ai
+
+# Prevent concurrent runs from racing on the mutable :insiders tag.
+# The Node.js build is long (Zig cross-compilation + QEMU), so the race
+# window is wide. cancel-in-progress: false lets the in-flight build finish
+# before the queued run starts, keeping :insiders coherent.
+concurrency:
+  group: insiders-build-opencode
+  cancel-in-progress: false
+
+jobs:
+
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      -
+        name: "Checkout source code"
+        uses: actions/checkout@v4
+      -
+        name: "Resolve OpenCode version"
+        id: versions
+        shell: bash
+        env:
+          INPUT_OPENCODE: ${{ github.event.inputs.opencode_version }}
+          INPUT_SHA: ${{ github.sha }}
+        run: |
+          # Read from opencode-node/Dockerfile (the Dockerfile this job builds).
+          # Keep in sync with the ARG OPENCODE_VERSION in dockerfiles/opencode/Dockerfile
+          # to ensure :next and :insiders ship the same OpenCode version.
+          DF_OPENCODE=$(grep -m1 'ARG OPENCODE_VERSION=' dockerfiles/opencode-node/Dockerfile | cut -d= -f2 | sed 's/^v//')
+          DF_OPENCODE_X86=$(grep -m1 'ARG OPENCODE_VERSION=' dockerfiles/opencode/Dockerfile | cut -d= -f2 | sed 's/^v//')
+          # The two Dockerfiles intentionally track different versions:
+          #   opencode/Dockerfile  — last Bun-based release (single binary, amd64/arm64 only)
+          #   opencode-node/Dockerfile — first release with build-node.ts (Node.js build, all arches)
+          # A version mismatch between them is expected, not an error. Only warn
+          # if they happen to diverge beyond the known pinned pair so maintainers
+          # notice unintentional drift when bumping one without updating the other.
+          if [[ "$DF_OPENCODE" != "$DF_OPENCODE_X86" ]]; then
+            echo "::notice::opencode-node=${DF_OPENCODE} vs opencode=${DF_OPENCODE_X86}: versions differ (expected — node build uses a newer tag with build-node.ts support)."
+          fi
+          OPENCODE="${INPUT_OPENCODE:-$DF_OPENCODE}"
+          [[ -n "$OPENCODE" ]] || { echo "::error::Failed to resolve OPENCODE_VERSION"; exit 1; }
+          # Validate version format to prevent injection via workflow_dispatch input
+          [[ "$OPENCODE" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "::error::OPENCODE_VERSION '${OPENCODE}' does not match expected format N.N.N"
+            exit 1
+          }
+          DATE=$(date +%Y%m%d)
+          SHA7="${INPUT_SHA:0:7}"
+          echo "opencode=${OPENCODE}"                                   >> "$GITHUB_OUTPUT"
+          echo "opencode_tag=${OPENCODE}-${DATE}-${SHA7}-insiders"     >> "$GITHUB_OUTPUT"
+      -
+        name: "Set up QEMU"
+        uses: docker/setup-qemu-action@v3
+      -
+        name: "Set up Docker Buildx"
+        uses: docker/setup-buildx-action@v3
+      -
+        name: "Login to Quay.io"
+        uses: docker/login-action@v3
+        with:
+          registry: quay.io
+          username: ${{ secrets.QUAY_USERNAME }}
+          password: ${{ secrets.QUAY_PASSWORD }}
+      -
+        name: "Build and push opencode:insiders (all arches — Node.js build)"
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./dockerfiles/opencode-node/Dockerfile
+          # ppc64le excluded: the Zig cross-compile target powerpc64le-linux-gnu
+          # is not yet stable; a failed build would produce a silently degraded
+          # image with no working TUI. Re-add once ppc64le is confirmed working.
+          platforms: linux/amd64,linux/arm64,linux/s390x
+          push: true
+          provenance: false
+          build-args: |
+            OPENCODE_VERSION=v${{ steps.versions.outputs.opencode }}
+          tags: |
+            ${{ env.REGISTRY }}/opencode:insiders
+            ${{ env.REGISTRY }}/opencode:${{ steps.versions.outputs.opencode_tag }}
+      -
+        name: "Build summary"
+        run: |
+          echo "## Insiders Build Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Image | Tags pushed |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`opencode\` | \`insiders\`, \`${{ steps.versions.outputs.opencode_tag }}\` (amd64/arm64/s390x Node.js) |" >> "$GITHUB_STEP_SUMMARY"
