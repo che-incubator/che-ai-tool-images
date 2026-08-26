@@ -13,7 +13,7 @@
 # s390x and ppc64le in addition to amd64/arm64.
 FROM registry.access.redhat.com/ubi8/nodejs-22-minimal:1-11 AS npm-installer
 
-ARG GEMINI_CLI_VERSION=0.44.0
+ARG GEMINI_CLI_VERSION=0.57.0
 
 RUN npm install -g @google/gemini-cli@${GEMINI_CLI_VERSION} && \
     npm cache clean --force
