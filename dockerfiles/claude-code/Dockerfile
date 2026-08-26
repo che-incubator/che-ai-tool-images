@@ -10,7 +10,7 @@
 
 FROM alpine:3.21 AS builder
 
-ARG CLAUDE_CODE_VERSION=2.1.81
+ARG CLAUDE_CODE_VERSION=2.1.246
 ARG TARGETARCH
 
 RUN apk add --no-cache curl

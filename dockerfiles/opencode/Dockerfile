@@ -10,7 +10,7 @@
 
 FROM alpine:3.21 AS builder
 
-ARG OPENCODE_VERSION=v1.2.27
+ARG OPENCODE_VERSION=v1.18.14
 ARG TARGETARCH
 
 RUN apk add --no-cache curl tar gzip
