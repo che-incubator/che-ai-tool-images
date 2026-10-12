@@ -1,0 +1,14 @@
+{
+  "name": "opencode-node-runtime",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "node-gyp": "12.1.0"
+  },
+  "dependencies": {
+    "@lydell/node-pty": "npm:node-pty@1.1.0",
+    "@parcel/watcher": "2.5.1",
+    "@silvia-odwyer/photon-node": "0.3.4",
+    "jsonc-parser": "3.3.1"
+  }
+}

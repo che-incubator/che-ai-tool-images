@@ -1,0 +1,63 @@
+# Copyright (c) 2026 Red Hat, Inc.
+# SPDX-License-Identifier: EPL-2.0
+# Build with the repository root as context on an amd64/arm64 builder.
+FROM --platform=$BUILDPLATFORM alpine:3.21 AS node-source
+ARG OPENCODE_VERSION=v1.18.14
+RUN apk add --no-cache git ca-certificates
+WORKDIR /build
+RUN git clone --depth 1 --branch "${OPENCODE_VERSION}" https://github.com/anomalyco/opencode.git . && git rev-parse HEAD > SOURCE_COMMIT
+
+# Bun is a build tool only; the s390x runtime uses Node.js.
+FROM --platform=$BUILDPLATFORM oven/bun:1.3.14 AS node-bundle
+ARG OPENCODE_VERSION=v1.18.14
+WORKDIR /build
+COPY --from=node-source /build/ ./
+RUN bun install --frozen-lockfile --ignore-scripts
+COPY dockerfiles/opencode-node/ /port/
+RUN bun /port/build.ts && cp SOURCE_COMMIT packages/opencode/dist/node/SOURCE_COMMIT
+
+# Compile native dependencies on the target CPU and the UDI's glibc baseline.
+FROM registry.access.redhat.com/ubi9/ubi:9.6 AS node-native
+ARG NODE_VERSION=24.21.0
+ARG TARGETARCH
+RUN test "$TARGETARCH" = s390x
+RUN dnf install -y gcc gcc-c++ make python3 tar gzip libatomic && dnf clean all
+RUN set -eu; \
+    archive="node-v${NODE_VERSION}-linux-s390x.tar.gz"; \
+    curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/${archive}" -o "/tmp/${archive}"; \
+    curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt" -o /tmp/SHASUMS256.txt; \
+    cd /tmp; awk -v file="$archive" '$2 == file {print}' SHASUMS256.txt > checksum; \
+    test -s checksum; sha256sum -c checksum; \
+    mkdir -p /opt/node; tar -xzf "$archive" -C /opt/node --strip-components=1; \
+    rm -f "$archive" SHASUMS256.txt checksum
+ENV PATH="/opt/node/bin:${PATH}"
+WORKDIR /opt/opencode
+COPY dockerfiles/opencode-node/package*.json ./
+RUN npm ci --omit=optional --ignore-scripts --no-audit --no-fund && \
+    ./node_modules/.bin/node-gyp rebuild --directory node_modules/@lydell/node-pty --nodedir /opt/node && \
+    ./node_modules/.bin/node-gyp rebuild --directory node_modules/@parcel/watcher --nodedir /opt/node && \
+    npm prune --omit=dev --omit=optional --ignore-scripts --no-audit --no-fund && \
+    node -e 'require("@lydell/node-pty"); require("@parcel/watcher")' && \
+    mkdir -p runtime && cp /opt/node/bin/node runtime/node
+
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.6 AS final
+ARG OPENCODE_VERSION=v1.18.14
+ARG TOOL_IMAGES_REVISION=unknown
+RUN microdnf install -y libstdc++ libatomic openssl-libs zlib && microdnf clean all
+COPY --from=node-native /opt/opencode/ /opt/opencode/
+COPY --from=node-bundle /build/packages/opencode/dist/node/ /opt/opencode/bundle/
+COPY --from=node-source /build/LICENSE /opt/opencode/LICENSE.opencode
+COPY --from=node-native /opt/node/LICENSE /opt/opencode/LICENSE.node
+COPY dockerfiles/opencode-node/opencode.sh /opt/opencode/bin/opencode
+RUN chmod 755 /opt/opencode/bin/opencode && ln -s /opt/opencode/bin/opencode /usr/local/bin/opencode
+LABEL org.opencontainers.image.source="https://github.com/che-incubator/che-ai-tool-images" \
+      io.eclipse.che.ai-tool.pattern="bundle" \
+      org.opencontainers.image.revision="${TOOL_IMAGES_REVISION}" \
+      org.opencontainers.image.version="${OPENCODE_VERSION}" \
+      org.opencontainers.image.description="OpenCode s390x headless CLI; interactive OpenTUI is unavailable"
+ENV PATH="/opt/opencode/bin:${PATH}"
+USER 10001
+RUN --mount=type=bind,source=tests,target=/validation \
+    OPENCODE_EXPECTED_VERSION="$OPENCODE_VERSION" sh /validation/opencode-injection-smoke.sh
+USER 0
+CMD ["opencode", "--help"]
