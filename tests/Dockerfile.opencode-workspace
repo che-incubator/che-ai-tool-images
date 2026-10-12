@@ -1,0 +1,6 @@
+# Copyright (c) 2026 Red Hat, Inc.
+# SPDX-License-Identifier: EPL-2.0
+FROM registry.access.redhat.com/ubi9/ubi-minimal:9.6@sha256:34880b64c07f28f64d95737f82f891516de9a3b43583f39970f7bf8e4cfa48b7
+# Minimal supported workspace: C++ runtime for Node/addons and Git for projects.
+RUN microdnf install -y libstdc++ git-core && microdnf clean all
+USER 10001
