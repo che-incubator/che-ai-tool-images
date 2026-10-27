@@ -78,7 +78,7 @@
       "pattern": "bundle",
       "injectorImage": "quay.io/che-incubator/dashboard-ai/opencode:next",
       "envVarName": "GOOGLE_GENERATIVE_AI_API_KEY",
-      "arch": ["s390x"]
+      "arch": ["s390x", "ppc64le"]
     }
   ],
   "defaultAiProviders": [

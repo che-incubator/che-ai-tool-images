@@ -26,7 +26,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [amd64, arm64, s390x]
+        arch: [amd64, arm64, s390x, ppc64le]
     steps:
       - uses: actions/checkout@v4
       - name: Resolve versions
@@ -41,13 +41,16 @@ jobs:
         env:
           ARCH: ${{ matrix.arch }}
         run: |
-          if [ "$ARCH" = s390x ]; then
-            echo 'context=.' >> "$GITHUB_OUTPUT"
-            echo 'file=dockerfiles/opencode/Dockerfile.s390x' >> "$GITHUB_OUTPUT"
-          else
-            echo 'context=./dockerfiles/opencode' >> "$GITHUB_OUTPUT"
-            echo 'file=dockerfiles/opencode/Dockerfile' >> "$GITHUB_OUTPUT"
-          fi
+          case "$ARCH" in
+            s390x|ppc64le)
+              echo 'context=.' >> "$GITHUB_OUTPUT"
+              echo 'file=dockerfiles/opencode/Dockerfile.node' >> "$GITHUB_OUTPUT"
+              ;;
+            *)
+              echo 'context=./dockerfiles/opencode' >> "$GITHUB_OUTPUT"
+              echo 'file=dockerfiles/opencode/Dockerfile' >> "$GITHUB_OUTPUT"
+              ;;
+          esac
       - name: Build without publishing
         uses: docker/build-push-action@v5
         with:

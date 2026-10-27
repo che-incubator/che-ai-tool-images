@@ -1,5 +1,6 @@
 # Copyright (c) 2026 Red Hat, Inc.
 # SPDX-License-Identifier: EPL-2.0
+# Headless Node.js build for s390x and ppc64le (no upstream Bun binary exists).
 # Build with the repository root as context on an amd64/arm64 builder.
 FROM --platform=$BUILDPLATFORM alpine:3.21 AS node-source
 ARG OPENCODE_VERSION=v1.18.14
@@ -7,7 +8,7 @@ RUN apk add --no-cache git ca-certificates
 WORKDIR /build
 RUN git clone --depth 1 --branch "${OPENCODE_VERSION}" https://github.com/anomalyco/opencode.git . && git rev-parse HEAD > SOURCE_COMMIT
 
-# Bun is a build tool only; the s390x runtime uses Node.js.
+# Bun is a build tool only; the s390x/ppc64le runtime uses Node.js.
 FROM --platform=$BUILDPLATFORM oven/bun:1.3.14 AS node-bundle
 ARG OPENCODE_VERSION=v1.18.14
 WORKDIR /build
@@ -20,10 +21,10 @@ RUN bun /port/build.ts && cp SOURCE_COMMIT packages/opencode/dist/node/SOURCE_CO
 FROM registry.access.redhat.com/ubi9/ubi:9.6 AS node-native
 ARG NODE_VERSION=24.21.0
 ARG TARGETARCH
-RUN test "$TARGETARCH" = s390x
+RUN case "$TARGETARCH" in s390x|ppc64le) ;; *) echo "Unsupported architecture: $TARGETARCH" >&2; exit 1 ;; esac
 RUN dnf install -y gcc gcc-c++ make python3 tar gzip libatomic && dnf clean all
 RUN set -eu; \
-    archive="node-v${NODE_VERSION}-linux-s390x.tar.gz"; \
+    archive="node-v${NODE_VERSION}-linux-${TARGETARCH}.tar.gz"; \
     curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/${archive}" -o "/tmp/${archive}"; \
     curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt" -o /tmp/SHASUMS256.txt; \
     cd /tmp; awk -v file="$archive" '$2 == file {print}' SHASUMS256.txt > checksum; \
@@ -54,7 +55,7 @@ LABEL org.opencontainers.image.source="https://github.com/che-incubator/che-ai-t
       io.eclipse.che.ai-tool.pattern="bundle" \
       org.opencontainers.image.revision="${TOOL_IMAGES_REVISION}" \
       org.opencontainers.image.version="${OPENCODE_VERSION}" \
-      org.opencontainers.image.description="OpenCode s390x headless CLI; interactive OpenTUI is unavailable"
+      org.opencontainers.image.description="OpenCode s390x/ppc64le headless CLI; interactive OpenTUI is unavailable"
 ENV PATH="/opt/opencode/bin:${PATH}"
 USER 10001
 RUN --mount=type=bind,source=tests,target=/validation \

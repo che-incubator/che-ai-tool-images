@@ -49,7 +49,7 @@ const result = await Bun.build({
           { filter: /^@silvia-odwyer\/photon-node$/ },
           ({ path }) => ({ path, external: true }),
         );
-        // Parcel's package loader supports a locally compiled binding on s390x.
+        // Parcel's package loader supports a locally compiled binding on s390x/ppc64le.
         // Upstream's prebuild-only selector would silently disable the watcher.
         build.onLoad(
           { filter: /\/core\/src\/filesystem\/watcher\.ts$/ },

@@ -101,13 +101,13 @@ jobs:
           build-args: |
             OPENCODE_VERSION=v${{ steps.versions.outputs.opencode }}
           outputs: type=image,name=${{ env.REGISTRY }}/opencode,push-by-digest=true,name-canonical=true,push=true
-      - name: "Build OpenCode s390x headless CLI"
-        id: opencode_s390x
+      - name: "Build OpenCode s390x/ppc64le headless CLI"
+        id: opencode_node
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./dockerfiles/opencode/Dockerfile.s390x
-          platforms: linux/s390x
+          file: ./dockerfiles/opencode/Dockerfile.node
+          platforms: linux/s390x,linux/ppc64le
           provenance: false
           build-args: |
             OPENCODE_VERSION=v${{ steps.versions.outputs.opencode }}
@@ -117,12 +117,12 @@ jobs:
         env:
           OPENCODE_IMAGE: ${{ env.REGISTRY }}/opencode
           OPENCODE_BINARY_DIGEST: ${{ steps.opencode_binary.outputs.digest }}
-          OPENCODE_S390X_DIGEST: ${{ steps.opencode_s390x.outputs.digest }}
+          OPENCODE_NODE_DIGEST: ${{ steps.opencode_node.outputs.digest }}
           OPENCODE_VERSION: ${{ steps.versions.outputs.opencode }}
         run: |
-          for arch in amd64 arm64 s390x; do
+          for arch in amd64 arm64 s390x ppc64le; do
             digest="$OPENCODE_BINARY_DIGEST"
-            if [ "$arch" = s390x ]; then digest="$OPENCODE_S390X_DIGEST"; fi
+            case "$arch" in s390x|ppc64le) digest="$OPENCODE_NODE_DIGEST" ;; esac
             docker run --rm --platform "linux/$arch" --user 10001 \
               --read-only --tmpfs /tmp:rw,exec,mode=1777 \
               -v "$PWD/tests:/validation:ro" \
@@ -134,17 +134,17 @@ jobs:
         env:
           OPENCODE_IMAGE: ${{ env.REGISTRY }}/opencode
           OPENCODE_BINARY_DIGEST: ${{ steps.opencode_binary.outputs.digest }}
-          OPENCODE_S390X_DIGEST: ${{ steps.opencode_s390x.outputs.digest }}
+          OPENCODE_NODE_DIGEST: ${{ steps.opencode_node.outputs.digest }}
           OPENCODE_VERSION_TAG: ${{ steps.versions.outputs.opencode_tag }}
         run: |
           docker buildx imagetools create --dry-run \
             "$OPENCODE_IMAGE@$OPENCODE_BINARY_DIGEST" \
-            "$OPENCODE_IMAGE@$OPENCODE_S390X_DIGEST" > opencode-index.json
-          jq -e '[.manifests[].platform | .os + "/" + .architecture] | sort == ["linux/amd64", "linux/arm64", "linux/s390x"]' opencode-index.json
+            "$OPENCODE_IMAGE@$OPENCODE_NODE_DIGEST" > opencode-index.json
+          jq -e '[.manifests[].platform | .os + "/" + .architecture] | sort == ["linux/amd64", "linux/arm64", "linux/ppc64le", "linux/s390x"]' opencode-index.json
           docker buildx imagetools create \
             --tag "$OPENCODE_IMAGE:latest" --tag "$OPENCODE_IMAGE:$OPENCODE_VERSION_TAG" \
             "$OPENCODE_IMAGE@$OPENCODE_BINARY_DIGEST" \
-            "$OPENCODE_IMAGE@$OPENCODE_S390X_DIGEST"
+            "$OPENCODE_IMAGE@$OPENCODE_NODE_DIGEST"
       -
         name: "Release summary"
         run: |

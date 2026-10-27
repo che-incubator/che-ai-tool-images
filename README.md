@@ -12,7 +12,7 @@ The original idea of injecting CLI tools into DevWorkspaces via init containers 
 |------|---------|-------|---------------|
 | [Claude Code](https://claude.ai/code) | init | `quay.io/che-incubator/dashboard-ai/claude-code:next` | amd64, arm64 |
 | [Gemini CLI](https://github.com/google-gemini/gemini-cli) | bundle | `quay.io/che-incubator/dashboard-ai/gemini-cli:next` | amd64, arm64, s390x, ppc64le |
-| [OpenCode](https://opencode.ai) | init | `quay.io/che-incubator/dashboard-ai/opencode:next` | amd64, arm64 |
+| [OpenCode](https://opencode.ai) | init (amd64, arm64) / bundle, headless (s390x, ppc64le) | `quay.io/che-incubator/dashboard-ai/opencode:next` | amd64, arm64, s390x, ppc64le |
 
 ---
 
@@ -116,7 +116,7 @@ The editor container must mount the `injected-tools` volume to access the binary
 dockerfiles/
 ├── claude-code/Dockerfile
 ├── gemini-cli/Dockerfile
-└── opencode/Dockerfile
+└── opencode/Dockerfile, Dockerfile.node
 ```
 
 ---
@@ -125,7 +125,7 @@ dockerfiles/
 
 | Workflow | Trigger | What it does |
 |----------|---------|-------------|
-| `next-build-multiarch.yml` | Push to `main` | Single Quay.io login; builds and pushes all 3 images (gemini-cli also for s390x and ppc64le) |
+| `next-build-multiarch.yml` | Push to `main` | Single Quay.io login; builds and pushes all 3 images (gemini-cli and opencode also for s390x and ppc64le) |
 
 ### Required Secrets
 
