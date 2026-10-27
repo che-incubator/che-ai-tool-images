@@ -29,7 +29,7 @@ const env = {
   XDG_STATE_HOME: path.join(home, ".local/state"),
 };
 const children = new Set();
-function start(args, extra = {}) {
+function start(args, extra = {}, timeoutMs = 90000) {
   const proc = spawn(cli, args, {
     cwd: temp,
     env: { ...env, ...extra },
@@ -47,7 +47,7 @@ function start(args, extra = {}) {
     const timer = setTimeout(() => {
       proc.kill("SIGKILL");
       reject(new Error(`Timed out: ${args.join(" ")}\n${output}`));
-    }, 90000);
+    }, timeoutMs);
     proc.on("error", reject);
     proc.on("close", (code) => {
       clearTimeout(timer);
@@ -241,13 +241,13 @@ try {
   await new Promise((resolve) => reservation.listen(0, "127.0.0.1", resolve));
   const port = reservation.address().port;
   await new Promise((resolve) => reservation.close(resolve));
-  const server = start([
-    "serve",
-    "--hostname",
-    "127.0.0.1",
-    "--port",
-    String(port),
-  ]);
+  // The server stays up through the health check and the provider request, so
+  // give it more headroom than one-shot commands (emulated builders are slow).
+  const server = start(
+    ["serve", "--hostname", "127.0.0.1", "--port", String(port)],
+    {},
+    300000,
+  );
   let healthy = false;
   for (let i = 0; i < 100; i++) {
     try {
