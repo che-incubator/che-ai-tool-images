@@ -28,6 +28,10 @@ inputs:
     description: 'Override OPENCODE_VERSION without leading v (empty = use Dockerfile default)'
     required: false
     default: ''
+  bob_override:
+    description: 'Override BOB_CLI_VERSION (empty = use Dockerfile default)'
+    required: false
+    default: ''
 
 outputs:
   claude:
@@ -39,6 +43,9 @@ outputs:
   opencode:
     description: 'Resolved OpenCode version (no leading v)'
     value: ${{ steps.resolve.outputs.opencode }}
+  bob:
+    description: 'Resolved IBM Bob CLI version'
+    value: ${{ steps.resolve.outputs.bob }}
   claude_tag:
     description: 'Immutable build tag for claude-code: {version}-{YYYYMMDD}-{sha7}'
     value: ${{ steps.resolve.outputs.claude_tag }}
@@ -48,6 +55,9 @@ outputs:
   opencode_tag:
     description: 'Immutable build tag for opencode: {version}-{YYYYMMDD}-{sha7}'
     value: ${{ steps.resolve.outputs.opencode_tag }}
+  bob_tag:
+    description: 'Immutable build tag for bob-cli: {version}-{YYYYMMDD}-{sha7}'
+    value: ${{ steps.resolve.outputs.bob_tag }}
 
 runs:
   using: composite
@@ -58,19 +68,23 @@ runs:
         INPUT_CLAUDE: ${{ inputs.claude_override }}
         INPUT_GEMINI: ${{ inputs.gemini_override }}
         INPUT_OPENCODE: ${{ inputs.opencode_override }}
+        INPUT_BOB: ${{ inputs.bob_override }}
         INPUT_SHA: ${{ inputs.sha }}
       run: |
         DF_CLAUDE=$(grep -m1 'ARG CLAUDE_CODE_VERSION=' dockerfiles/claude-code/Dockerfile | cut -d= -f2)
         DF_GEMINI=$(grep -m1 'ARG GEMINI_CLI_VERSION=' dockerfiles/gemini-cli/Dockerfile | cut -d= -f2)
         DF_OPENCODE=$(grep -m1 'ARG OPENCODE_VERSION=' dockerfiles/opencode/Dockerfile | cut -d= -f2 | sed 's/^v//')
+        DF_BOB=$(grep -m1 'ARG BOB_CLI_VERSION=' dockerfiles/bob-cli/Dockerfile | cut -d= -f2)
 
         CLAUDE="${INPUT_CLAUDE:-$DF_CLAUDE}"
         GEMINI="${INPUT_GEMINI:-$DF_GEMINI}"
         OPENCODE="${INPUT_OPENCODE:-$DF_OPENCODE}"
+        BOB="${INPUT_BOB:-$DF_BOB}"
 
         [[ -n "$CLAUDE" ]]   || { echo "::error::Failed to resolve CLAUDE_CODE_VERSION — check dockerfiles/claude-code/Dockerfile"; exit 1; }
         [[ -n "$GEMINI" ]]   || { echo "::error::Failed to resolve GEMINI_CLI_VERSION — check dockerfiles/gemini-cli/Dockerfile"; exit 1; }
         [[ -n "$OPENCODE" ]] || { echo "::error::Failed to resolve OPENCODE_VERSION — check dockerfiles/opencode/Dockerfile"; exit 1; }
+        [[ -n "$BOB" ]] || { echo "::error::Failed to resolve BOB_CLI_VERSION — check dockerfiles/bob-cli/Dockerfile"; exit 1; }
 
         DATE=$(date +%Y%m%d)
         SHA7="${INPUT_SHA:0:7}"
@@ -78,6 +92,8 @@ runs:
         echo "claude=${CLAUDE}"          >> "$GITHUB_OUTPUT"
         echo "gemini=${GEMINI}"          >> "$GITHUB_OUTPUT"
         echo "opencode=${OPENCODE}"      >> "$GITHUB_OUTPUT"
+        echo "bob=${BOB}"                >> "$GITHUB_OUTPUT"
         echo "claude_tag=${CLAUDE}-${DATE}-${SHA7}"    >> "$GITHUB_OUTPUT"
         echo "gemini_tag=${GEMINI}-${DATE}-${SHA7}"    >> "$GITHUB_OUTPUT"
         echo "opencode_tag=${OPENCODE}-${DATE}-${SHA7}" >> "$GITHUB_OUTPUT"
+        echo "bob_tag=${BOB}-${DATE}-${SHA7}" >> "$GITHUB_OUTPUT"

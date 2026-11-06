@@ -32,6 +32,17 @@
       "tags": [
         "Tech-Preview"
       ]
+    },
+    {
+      "id": "ibm/bob",
+      "name": "IBM Bob",
+      "publisher": "IBM",
+      "description": "IBM Bob AI coding assistant for interactive and automated terminal workflows. Requires a workspace with at least 4 GB RAM.",
+      "docsUrl": "https://bob.ibm.com/docs/shell/getting-started/install-and-setup",
+      "icon": "https://bob.ibm.com/apple-touch-icon.png",
+      "tags": [
+        "Tech-Preview"
+      ]
     }
   ],
   "tools": [
@@ -68,6 +79,17 @@
       "injectorImage": "quay.io/che-incubator/dashboard-ai/opencode:next",
       "envVarName": "GOOGLE_GENERATIVE_AI_API_KEY",
       "arch": ["amd64", "arm64"]
+    },
+    {
+      "providerId": "ibm/bob",
+      "tag": "next",
+      "name": "IBM Bob CLI",
+      "url": "https://bob.ibm.com/docs/shell/getting-started/install-and-setup",
+      "binary": "bob",
+      "pattern": "bundle",
+      "injectorImage": "quay.io/che-incubator/dashboard-ai/bob-cli:next",
+      "envVarName": "BOB_API_KEY",
+      "arch": ["amd64", "arm64", "s390x", "ppc64le"]
     }
   ],
   "defaultAiProviders": [

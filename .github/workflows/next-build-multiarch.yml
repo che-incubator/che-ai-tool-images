@@ -86,6 +86,18 @@ jobs:
             ${{ env.REGISTRY }}/opencode:next
             ${{ env.REGISTRY }}/opencode:${{ steps.versions.outputs.opencode_tag }}
       -
+        name: "Build and push bob-cli"
+        uses: docker/build-push-action@v5
+        with:
+          context: ./dockerfiles/bob-cli
+          file: ./dockerfiles/bob-cli/Dockerfile
+          platforms: linux/amd64,linux/arm64,linux/s390x,linux/ppc64le
+          push: true
+          provenance: false
+          tags: |
+            ${{ env.REGISTRY }}/bob-cli:next
+            ${{ env.REGISTRY }}/bob-cli:${{ steps.versions.outputs.bob_tag }}
+      -
         name: "Build summary"
         run: |
           echo "## Next Build Summary" >> "$GITHUB_STEP_SUMMARY"
@@ -94,3 +106,4 @@ jobs:
           echo "| \`claude-code\` | \`next\`, \`${{ steps.versions.outputs.claude_tag }}\` |" >> "$GITHUB_STEP_SUMMARY"
           echo "| \`gemini-cli\`  | \`next\`, \`${{ steps.versions.outputs.gemini_tag }}\` |"  >> "$GITHUB_STEP_SUMMARY"
           echo "| \`opencode\`    | \`next\`, \`${{ steps.versions.outputs.opencode_tag }}\` |"   >> "$GITHUB_STEP_SUMMARY"
+          echo "| \`bob-cli\` | \`next\`, \`${{ steps.versions.outputs.bob_tag }}\` |" >> "$GITHUB_STEP_SUMMARY"
