@@ -1,6 +1,6 @@
 # che-ai-tool-images
 
-UBI10-based init container images that inject AI CLI tools into Eclipse Che DevWorkspaces.
+UBI-based init container images that inject AI CLI tools into Eclipse Che DevWorkspaces.
 
 ## Background
 
@@ -13,6 +13,7 @@ The original idea of injecting CLI tools into DevWorkspaces via init containers 
 | [Claude Code](https://claude.ai/code) | init | `quay.io/che-incubator/dashboard-ai/claude-code:next` | amd64, arm64 |
 | [Gemini CLI](https://github.com/google-gemini/gemini-cli) | bundle | `quay.io/che-incubator/dashboard-ai/gemini-cli:next` | amd64, arm64, s390x, ppc64le |
 | [OpenCode](https://opencode.ai) | init | `quay.io/che-incubator/dashboard-ai/opencode:next` | amd64, arm64 |
+| [IBM Bob CLI](https://bob.ibm.com/docs/shell/getting-started/install-and-setup) | bundle | `quay.io/che-incubator/dashboard-ai/bob-cli:next` | amd64, arm64, s390x |
 
 ---
 
@@ -108,12 +109,77 @@ events:
 
 The editor container must mount the `injected-tools` volume to access the binary.
 
+### IBM Bob CLI
+
+Bob uses the same bundle pattern as Gemini CLI, with `@ibm/bob` and its own
+Node.js 24 runtime. The launcher resolves injected symlinks and handles an
+unwritable HOME on OpenShift.
+
+```yaml
+components:
+  - name: injected-tools
+    volume:
+      size: 512Mi
+  - name: bob-cli-injector
+    container:
+      image: quay.io/che-incubator/dashboard-ai/bob-cli:next
+      command: ["/bin/sh"]
+      args: ["-c", "cp -a /opt/bob-cli/. /injected-tools/bob-cli/"]
+      memoryLimit: 512Mi
+      mountSources: false
+      volumeMounts:
+        - name: injected-tools
+          path: /injected-tools
+commands:
+  - id: install-bob-cli
+    apply:
+      component: bob-cli-injector
+events:
+  preStart:
+    - install-bob-cli
+```
+
+The development container must mount `injected-tools`; the executable is
+`/injected-tools/bob-cli/bin/bob`. With the dashboard, select **IBM Bob CLI** under
+**Choose an AI Provider** before creating the workspace. The dashboard configures
+the mount, symlink, and PATH automatically.
+
+Add an Inference API key under **User Preferences → AI Providers Keys → IBM Bob CLI**
+to inject `BOB_API_KEY`, then use `bob` or `bob chat`. General API keys additionally
+require `--team-id`. Review `bob --show-license` before accepting the license on
+first use; the image does not pre-accept it.
+
+Set the development container's `memoryLimit` to at least `4Gi`, following
+[IBM's requirements](https://bob.ibm.com/docs/shell/getting-started/install-and-setup)
+(4 GB minimum, 8 GB recommended). The injector limit only covers copying the
+bundle. The destination container needs glibc 2.28+ and libstdc++, as provided by
+UBI9/UBI10 developer images.
+
+#### Architecture validation and optional features
+
+The Bob image and dashboard provider target `amd64`, `arm64`, and `s390x`.
+Power (`ppc64le`) support is deferred until native workspace validation passes.
+
+Bob 2.0.9 declares `@lydell/node-pty@1.1.0` and `@officecli/officecli@1.0.152`
+as optional dependencies. Their Linux native binaries target x64 and arm64.
+When PTY loading fails, Bob's shell-command handler falls back to
+`child_process.spawn`. On s390x, the bundled dependencies provide
+no native PTY or OfficeCLI binary, so OfficeCLI features are unavailable and
+PTY-dependent interactive commands may have reduced functionality.
+
+Native s390x validation in an OpenShift Dev Spaces workspace covered provider
+selection, bundle and API-key injection, CLI startup, authenticated inference,
+and a shell-created file whose contents were read back independently. The
+[companion E2E smoke test](https://github.com/eclipse-che/che/pull/24019) completed
+with 18 passing tests and one intentional skip for an existing provider key.
+
 ---
 
 ## Structure
 
 ```
 dockerfiles/
+├── bob-cli/Dockerfile
 ├── claude-code/Dockerfile
 ├── gemini-cli/Dockerfile
 └── opencode/Dockerfile
@@ -125,7 +191,8 @@ dockerfiles/
 
 | Workflow | Trigger | What it does |
 |----------|---------|-------------|
-| `next-build-multiarch.yml` | Push to `main` | Single Quay.io login; builds and pushes all 3 images (gemini-cli also for s390x and ppc64le) |
+| `next-build-multiarch.yml` | Push to `main` or manual | Single Quay.io login; builds and pushes all 4 images (gemini-cli and bob-cli also for s390x; gemini-cli also for ppc64le) |
+| `release-build-multiarch.yml` | Manual | Optional version overrides; builds all 4 images with `latest` and immutable tags |
 
 ### Required Secrets
 
