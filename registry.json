@@ -68,6 +68,17 @@
       "injectorImage": "quay.io/che-incubator/dashboard-ai/opencode:next",
       "envVarName": "GOOGLE_GENERATIVE_AI_API_KEY",
       "arch": ["amd64", "arm64"]
+    },
+    {
+      "providerId": "opencodeai/opencode",
+      "tag": "next",
+      "name": "OpenCode (headless)",
+      "url": "https://opencode.ai",
+      "binary": "opencode",
+      "pattern": "bundle",
+      "injectorImage": "quay.io/che-incubator/dashboard-ai/opencode:next",
+      "envVarName": "GOOGLE_GENERATIVE_AI_API_KEY",
+      "arch": ["s390x"]
     }
   ],
   "defaultAiProviders": [
