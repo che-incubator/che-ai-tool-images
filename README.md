@@ -12,7 +12,7 @@ The original idea of injecting CLI tools into DevWorkspaces via init containers 
 |------|---------|-------|---------------|
 | [Claude Code](https://claude.ai/code) | init | `quay.io/che-incubator/dashboard-ai/claude-code:next` | amd64, arm64 |
 | [Gemini CLI](https://github.com/google-gemini/gemini-cli) | bundle | `quay.io/che-incubator/dashboard-ai/gemini-cli:next` | amd64, arm64, s390x, ppc64le |
-| [OpenCode](https://opencode.ai) | init | `quay.io/che-incubator/dashboard-ai/opencode:next` | amd64, arm64 |
+| [OpenCode](https://opencode.ai) | init (amd64, arm64) / bundle, headless (s390x, ppc64le) | `quay.io/che-incubator/dashboard-ai/opencode:next` | amd64, arm64, s390x, ppc64le |
 
 ---
 
@@ -80,6 +80,10 @@ The editor container must mount the `injected-tools` volume to access the tool a
 
 ### OpenCode
 
+The image is multi-arch but uses a different injection pattern per architecture.
+
+**amd64, arm64** (init, single binary):
+
 ```yaml
 components:
   - name: injected-tools
@@ -108,6 +112,36 @@ events:
 
 The editor container must mount the `injected-tools` volume to access the binary.
 
+**s390x, ppc64le** (bundle, headless CLI). `/usr/local/bin/opencode` is only a launcher script here; the Node.js runtime and native modules live in `/opt/opencode`, so copy the whole directory, as for Gemini CLI:
+
+```yaml
+components:
+  - name: injected-tools
+    volume:
+      size: 512Mi
+  - name: opencode-injector
+    container:
+      image: quay.io/che-incubator/dashboard-ai/opencode:next
+      command: ["/bin/sh"]
+      args: ["-c", "cp -a /opt/opencode/. /injected-tools/opencode/"]
+      memoryLimit: 1024Mi
+      mountSources: false
+      volumeMounts:
+        - name: injected-tools
+          path: /injected-tools
+
+commands:
+  - id: install-opencode
+    apply:
+      component: opencode-injector
+
+events:
+  preStart:
+    - install-opencode
+```
+
+The editor container must mount the `injected-tools` volume to access the tool at `/injected-tools/opencode/bin/opencode`. The bundle is about 250 MB, which fits the 512Mi volume above. The interactive terminal UI (OpenTUI) is not available on these architectures.
+
 ---
 
 ## Structure
@@ -116,7 +150,7 @@ The editor container must mount the `injected-tools` volume to access the binary
 dockerfiles/
 ├── claude-code/Dockerfile
 ├── gemini-cli/Dockerfile
-└── opencode/Dockerfile
+└── opencode/Dockerfile, Dockerfile.node
 ```
 
 ---
@@ -125,7 +159,7 @@ dockerfiles/
 
 | Workflow | Trigger | What it does |
 |----------|---------|-------------|
-| `next-build-multiarch.yml` | Push to `main` | Single Quay.io login; builds and pushes all 3 images (gemini-cli also for s390x and ppc64le) |
+| `next-build-multiarch.yml` | Push to `main` | Single Quay.io login; builds and pushes all 3 images (gemini-cli and opencode also for s390x and ppc64le) |
 
 ### Required Secrets
 
