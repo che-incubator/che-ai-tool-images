@@ -13,7 +13,9 @@ FROM --platform=$BUILDPLATFORM oven/bun:1.3.14 AS node-bundle
 ARG OPENCODE_VERSION=v1.18.14
 WORKDIR /build
 COPY --from=node-source /build/ ./
-RUN bun install --frozen-lockfile --ignore-scripts
+# Install only the CLI workspace: the web/console packages pull @solidjs/start from
+# pkg.pr.new, a preview host that intermittently returns 404 and is not needed here.
+RUN bun install --frozen-lockfile --ignore-scripts --filter opencode
 COPY dockerfiles/opencode-node/ /port/
 RUN bun /port/build.ts && cp SOURCE_COMMIT packages/opencode/dist/node/SOURCE_COMMIT
 
