@@ -80,6 +80,10 @@ The editor container must mount the `injected-tools` volume to access the tool a
 
 ### OpenCode
 
+The image is multi-arch but uses a different injection pattern per architecture.
+
+**amd64, arm64** (init, single binary):
+
 ```yaml
 components:
   - name: injected-tools
@@ -107,6 +111,36 @@ events:
 ```
 
 The editor container must mount the `injected-tools` volume to access the binary.
+
+**s390x, ppc64le** (bundle, headless CLI). `/usr/local/bin/opencode` is only a launcher script here; the Node.js runtime and native modules live in `/opt/opencode`, so copy the whole directory, as for Gemini CLI:
+
+```yaml
+components:
+  - name: injected-tools
+    volume:
+      size: 512Mi
+  - name: opencode-injector
+    container:
+      image: quay.io/che-incubator/dashboard-ai/opencode:next
+      command: ["/bin/sh"]
+      args: ["-c", "cp -a /opt/opencode/. /injected-tools/opencode/"]
+      memoryLimit: 1024Mi
+      mountSources: false
+      volumeMounts:
+        - name: injected-tools
+          path: /injected-tools
+
+commands:
+  - id: install-opencode
+    apply:
+      component: opencode-injector
+
+events:
+  preStart:
+    - install-opencode
+```
+
+The editor container must mount the `injected-tools` volume to access the tool at `/injected-tools/opencode/bin/opencode`. The bundle is about 250 MB, which fits the 512Mi volume above. The interactive terminal UI (OpenTUI) is not available on these architectures.
 
 ---
 
